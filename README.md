@@ -8,7 +8,7 @@ Zero external dependencies: standard library only.
 
 ```
                  ┌────────────┐   RequestVote / Heartbeat   ┌────────────┐
-   submit ─────▶ │ scheduler  │ ◀───────────────────────▶ │ scheduler  │
+   submit ─────▶│ scheduler  │ ◀───────────────────────▶  │ scheduler  │
    (client)      │  (leader)  │                             │ (follower) │
                  └─────┬──────┘                             └────────────┘
           dispatch     │  ▲ register / heartbeat /
@@ -59,20 +59,21 @@ go run ./cmd/status -scheduler localhost:8000
 
 To run a multi-scheduler cluster (leader election and failover), start several `cmd/scheduler` processes with `-peers id1=addr1,id2=addr2` pointing at each other.
 
+Pass `-data-dir DIR` to persist each replica's Raft term and vote. A restarted replica then remembers who it voted for and can't vote twice in the same term. Without it, state is in memory only.
+
 ## Tests
 
 ```bash
 go test -race ./... -v
 ```
 
-Covers: single-leader election, follower convergence on the current leader, re-election after the leader stops, least-loaded dispatch, task reassignment when a worker stops sending heartbeats, and the shell executor (success, non-zero exit, timeout, empty payload).
+Covers: single-leader election, follower convergence on the current leader, re-election after the leader stops, no double vote after a restart (and refusing a vote that can't be saved), least-loaded dispatch, task reassignment when a worker stops sending heartbeats, and the shell executor (success, non-zero exit, timeout, empty payload).
 
 ## Current limitations
 
 This is a working prototype. Known gaps:
 
 - **Election only, no log replication.** Task state lives in the leader's memory and is not replicated. If the leader crashes, a new leader is elected but starts with an empty task queue.
-- **Raft term/vote is not persisted**, so a restarted node can vote twice in the same term.
 - **Workers register with a single scheduler address**, so after a failover they must be pointed at the new leader.
 - **At-least-once execution.** A slow (not dead) worker declared dead can cause a task to run twice.
 - **No authentication or TLS.** Task payloads run via `sh -c`, so only run this on a trusted network.
@@ -81,8 +82,8 @@ This is a working prototype. Known gaps:
 
 - [x] Real task execution backend (shell executor)
 - [x] Status CLI
-- [ ] Ignore stale completion/failure reports from non-assigned workers
-- [ ] Persist Raft term/vote state
+- [x] Ignore stale completion/failure reports from non-assigned workers
+- [x] Persist Raft term/vote state (`-data-dir`)
 - [ ] Workers accept multiple scheduler addresses and re-register on failover
 - [ ] Replicate task state to followers
 - [ ] Swap `net/rpc` for gRPC
