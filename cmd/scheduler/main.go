@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/rpc"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ func main() {
 	id := flag.String("id", "", "unique ID for this scheduler replica")
 	addr := flag.String("addr", ":8000", "address to listen on for RPC")
 	peersFlag := flag.String("peers", "", "comma-separated id=addr pairs for other scheduler replicas")
+	dataDir := flag.String("data-dir", "", "directory for durable Raft state (term and vote); empty keeps state in memory only")
 	flag.Parse()
 
 	if *id == "" {
@@ -52,6 +54,13 @@ func main() {
 
 	transport := raft.NewRPCTransport(peerAddrs)
 	node := raft.NewNode(*id, peerIDs, transport)
+	if *dataDir != "" {
+		statePath := filepath.Join(*dataDir, *id+".raft.json")
+		if err := node.SetPersister(raft.NewFilePersister(statePath)); err != nil {
+			log.Fatalf("failed to restore raft state from %s: %v", statePath, err)
+		}
+		log.Printf("[%s] raft state at %s (restored term %d)", *id, statePath, node.Term())
+	}
 	node.OnBecomeLeader(func() {
 		log.Printf("[%s] elected LEADER (term %d) -- now accepting task submissions", *id, node.Term())
 	})
