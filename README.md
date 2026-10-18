@@ -47,6 +47,7 @@ queued ──▶ assigned ──▶ completed
 go run ./cmd/scheduler -id s1 -addr :8000
 
 # terminals 2 and 3: start workers, pointing at the scheduler
+# (with several replicas, pass them all: -scheduler host1:8000,host2:8000,host3:8000)
 go run ./cmd/worker -id w1 -addr :9001 -scheduler localhost:8000
 go run ./cmd/worker -id w2 -addr :9002 -scheduler localhost:8000
 
@@ -67,14 +68,13 @@ Pass `-data-dir DIR` to persist each replica's Raft term and vote. A restarted r
 go test -race ./... -v
 ```
 
-Covers: single-leader election, follower convergence on the current leader, re-election after the leader stops, no double vote after a restart (and refusing a vote that can't be saved), least-loaded dispatch, task reassignment when a worker stops sending heartbeats, and the shell executor (success, non-zero exit, timeout, empty payload).
+Covers: workers registering with and reporting to multiple schedulers, single-leader election, follower convergence on the current leader, re-election after the leader stops, no double vote after a restart (and refusing a vote that can't be saved), least-loaded dispatch, task reassignment when a worker stops sending heartbeats, and the shell executor (success, non-zero exit, timeout, empty payload).
 
 ## Current limitations
 
 This is a working prototype. Known gaps:
 
 - **Election only, no log replication.** Task state lives in the leader's memory and is not replicated. If the leader crashes, a new leader is elected but starts with an empty task queue.
-- **Workers register with a single scheduler address**, so after a failover they must be pointed at the new leader.
 - **At-least-once execution.** A slow (not dead) worker declared dead can cause a task to run twice.
 - **No authentication or TLS.** Task payloads run via `sh -c`, so only run this on a trusted network.
 
@@ -84,7 +84,7 @@ This is a working prototype. Known gaps:
 - [x] Status CLI
 - [x] Ignore stale completion/failure reports from non-assigned workers
 - [x] Persist Raft term/vote state (`-data-dir`)
-- [ ] Workers accept multiple scheduler addresses and re-register on failover
+- [x] Workers accept multiple scheduler addresses and re-register on failover
 - [ ] Replicate task state to followers
 - [ ] Swap `net/rpc` for gRPC
 - [ ] Chaos test harness (random worker/leader kills under load)
