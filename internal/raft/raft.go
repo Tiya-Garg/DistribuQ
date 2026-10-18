@@ -5,6 +5,7 @@
 package raft
 
 import (
+	"log"
 	"math/rand"
 	"sync"
 	"time"
@@ -73,6 +74,11 @@ type Node struct {
 
 	transport Transport
 
+	// persister, if set, durably stores currentTerm and votedFor. Every
+	// change to either is saved before the node acts on it or replies
+	// to a peer (see persistLocked).
+	persister Persister
+
 	electionResetAt time.Time
 	electionTimeout time.Duration
 
@@ -93,6 +99,32 @@ func NewNode(id string, peers []string, transport Transport) *Node {
 		electionTimeout: randomElectionTimeout(),
 		stopCh:          make(chan struct{}),
 	}
+}
+
+// SetPersister attaches durable storage and restores currentTerm and
+// votedFor from it. It must be called before Run. Without a persister
+// the node keeps its state in memory only, and a restarted node can
+// vote twice in the same term.
+func (n *Node) SetPersister(p Persister) error {
+	term, votedFor, err := p.Load()
+	if err != nil {
+		return err
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.persister = p
+	n.currentTerm = term
+	n.votedFor = votedFor
+	return nil
+}
+
+// persistLocked saves currentTerm and votedFor. Callers must hold n.mu.
+// A node with no persister always succeeds.
+func (n *Node) persistLocked() error {
+	if n.persister == nil {
+		return nil
+	}
+	return n.persister.Save(n.currentTerm, n.votedFor)
 }
 
 func (n *Node) OnBecomeLeader(fn func())   { n.onBecomeLeader = fn }
@@ -174,6 +206,16 @@ func (n *Node) startElection() {
 	n.state = Candidate
 	n.currentTerm++
 	n.votedFor = n.ID
+	if err := n.persistLocked(); err != nil {
+		// Without a durable vote we must not ask anyone for theirs.
+		log.Printf("raft[%s]: cannot persist election state, abandoning election: %v", n.ID, err)
+		n.currentTerm--
+		n.votedFor = ""
+		n.state = Follower
+		n.mu.Unlock()
+		n.resetElectionTimer()
+		return
+	}
 	term := n.currentTerm
 	peers := append([]string{}, n.Peers...)
 	n.mu.Unlock()
@@ -200,6 +242,9 @@ func (n *Node) startElection() {
 				n.currentTerm = reply.Term
 				n.state = Follower
 				n.votedFor = ""
+				if err := n.persistLocked(); err != nil {
+					log.Printf("raft[%s]: persist failed: %v", n.ID, err)
+				}
 			}
 			n.mu.Unlock()
 
@@ -245,7 +290,11 @@ func (n *Node) sendHeartbeats() {
 				n.currentTerm = reply.Term
 				n.state = Follower
 				n.leaderID = ""
+				n.votedFor = ""
 				n.electionResetAt = time.Now()
+				if err := n.persistLocked(); err != nil {
+					log.Printf("raft[%s]: persist failed: %v", n.ID, err)
+				}
 				n.mu.Unlock()
 				if n.onBecomeFollower != nil {
 					n.onBecomeFollower()
@@ -277,6 +326,14 @@ func (n *Node) HandleRequestVote(args *RequestVoteArgs) *RequestVoteReply {
 		n.votedFor = args.CandidateID
 		n.electionResetAt = time.Now()
 	}
+
+	// The vote (and any term bump) must be on disk before the candidate
+	// hears about it. If it can't be saved, refuse: an unrecorded vote
+	// could be cast again after a restart.
+	if err := n.persistLocked(); err != nil {
+		log.Printf("raft[%s]: persist failed, refusing vote for %s: %v", n.ID, args.CandidateID, err)
+		return &RequestVoteReply{Term: n.currentTerm, VoteGranted: false}
+	}
 	return &RequestVoteReply{Term: n.currentTerm, VoteGranted: granted}
 }
 
@@ -291,7 +348,13 @@ func (n *Node) HandleHeartbeat(args *HeartbeatArgs) *HeartbeatReply {
 	}
 
 	wasLeaderOrCandidate := n.state != Follower
-	n.currentTerm = args.Term
+	if args.Term > n.currentTerm {
+		n.currentTerm = args.Term
+		n.votedFor = ""
+		if err := n.persistLocked(); err != nil {
+			log.Printf("raft[%s]: persist failed: %v", n.ID, err)
+		}
+	}
 	n.state = Follower
 	n.leaderID = args.LeaderID
 	n.electionResetAt = time.Now()
