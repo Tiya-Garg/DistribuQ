@@ -478,3 +478,50 @@ func TestRestartedNodeRecoversLogFromDisk(t *testing.T) {
 		}
 	}
 }
+
+func TestLeaderProposesNoopOnElection(t *testing.T) {
+	_, nodes := newCluster(t, []string{"n1", "n2", "n3"})
+	for _, n := range nodes {
+		go n.Run()
+		defer n.Stop()
+	}
+
+	leaderElectedCh := make(chan string, 1)
+	for _, n := range nodes {
+		node := n
+		node.OnBecomeLeader(func() {
+			select {
+			case leaderElectedCh <- node.ID:
+			default:
+			}
+		})
+	}
+
+	select {
+	case leaderID := <-leaderElectedCh:
+		var leaderNode *Node
+		for _, n := range nodes {
+			if n.ID == leaderID {
+				leaderNode = n
+				break
+			}
+		}
+		if leaderNode == nil {
+			t.Fatalf("could not find leader node %s", leaderID)
+		}
+
+		// Ensure the leader has a CmdNoop entry committed
+		logEntries := leaderNode.Log()
+		if len(logEntries) == 0 {
+			t.Fatalf("expected at least 1 log entry (CmdNoop), got 0")
+		}
+		if logEntries[0].Type != CmdNoop {
+			t.Fatalf("expected first entry to be CmdNoop, got %v", logEntries[0].Type)
+		}
+		if leaderNode.CommitIndex() < 1 {
+			t.Fatalf("expected CmdNoop to be committed before OnBecomeLeader callback, commitIndex=%d", leaderNode.CommitIndex())
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for leader election and noop commit")
+	}
+}

@@ -334,7 +334,19 @@ func (n *Node) startElection() {
 			n.matchIndex[p] = 0
 		}
 		if n.onBecomeLeader != nil {
-			go n.onBecomeLeader()
+			cb := n.onBecomeLeader
+			// Raft paper Section 5.4.2: A leader cannot commit log entries from previous terms
+			// by counting replicas; it must commit an entry from its current term.
+			// Propose a no-op entry and invoke onBecomeLeader once committed.
+			go func() {
+				_, _, commitCh, err := n.Propose(LogEntry{Type: CmdNoop})
+				if err != nil {
+					return
+				}
+				if ok := <-commitCh; ok {
+					cb()
+				}
+			}()
 		}
 		go n.sendHeartbeats()
 	}

@@ -17,6 +17,7 @@ const (
 	CmdAssign   CommandType = "assigned"
 	CmdComplete CommandType = "completed"
 	CmdFail     CommandType = "failed"
+	CmdNoop     CommandType = "noop"
 )
 
 // LogEntry is an entry in the replicated Raft log representing a task event.
