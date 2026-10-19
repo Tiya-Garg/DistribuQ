@@ -766,7 +766,7 @@ func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
 		}
 
 	case raft.CmdSnapshot:
-		// Snapshot command placeholder – no action for now.
+		// CmdSnapshot is currently a no-op; no snapshot logic implemented yet.
 
 
 	case raft.CmdAssign:
