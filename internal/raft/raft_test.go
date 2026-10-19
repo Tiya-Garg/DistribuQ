@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"fmt"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -523,5 +524,62 @@ func TestLeaderProposesNoopOnElection(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("timed out waiting for leader election and noop commit")
+	}
+}
+
+func TestApplyOrderingStrictlySequential(t *testing.T) {
+	_, nodes := newCluster(t, []string{"n1"})
+	n := nodes[0]
+
+	var appliedMu sync.Mutex
+	var applied []int
+
+	n.OnApply(func(e LogEntry) {
+		appliedMu.Lock()
+		defer appliedMu.Unlock()
+		applied = append(applied, e.Index)
+	})
+
+	leaderReady := make(chan struct{}, 1)
+	n.OnBecomeLeader(func() {
+		leaderReady <- struct{}{}
+	})
+
+	n.startElection()
+	if n.State() != Leader {
+		t.Fatal("single node should become leader")
+	}
+
+	<-leaderReady
+
+	numEntries := 50
+	for i := 0; i < numEntries; i++ {
+		_, _, commitCh, err := n.Propose(LogEntry{
+			Type:   CmdSubmit,
+			TaskID: fmt.Sprintf("task-%d", i),
+		})
+		if err != nil {
+			t.Fatalf("propose failed: %v", err)
+		}
+		if !<-commitCh {
+			t.Fatalf("commit failed for task %d", i)
+		}
+	}
+
+	// Give a small grace period for all applications to finish
+	time.Sleep(100 * time.Millisecond)
+
+	appliedMu.Lock()
+	defer appliedMu.Unlock()
+
+	// Including the election no-op entry, there should be numEntries + 1 entries
+	if len(applied) != numEntries+1 {
+		t.Fatalf("expected %d entries applied, got %d", numEntries+1, len(applied))
+	}
+	for i := 0; i < len(applied); i++ {
+		expectedIndex := i + 1
+		if applied[i] != expectedIndex {
+			t.Fatalf("applied entries out of order: at pos %d expected index %d, got %d", i, expectedIndex, applied[i])
+		}
 	}
 }
