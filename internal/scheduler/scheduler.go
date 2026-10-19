@@ -6,6 +6,7 @@ package scheduler
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"sort"
 	"sync"
 	"sync/atomic"
