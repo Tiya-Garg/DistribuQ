@@ -44,6 +44,10 @@ type Task struct {
 	// without completing (dispatch error, reported failure, or the
 	// worker going silent). Dispatch prefers workers not in this set.
 	tried map[string]bool
+
+	// dispatching is true while one goroutine is assigning this task to a
+	// worker; it stops a second goroutine from assigning it concurrently.
+	dispatching bool
 }
 
 type WorkerInfo struct {
@@ -254,16 +258,43 @@ func (s *Scheduler) SubmitTask(id, payload string) (*Task, error) {
 // MaxRetries the task is marked TaskFailed instead of requeued, which
 // stops the recursion.
 func (s *Scheduler) dispatch(task *Task) error {
+	var firstErr error
+	for next := task; next != nil; {
+		var err error
+		next, err = s.dispatchAttempt(next)
+		if firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+// dispatchAttempt makes one attempt to place task on a worker. If the
+// attempt failed and the task was requeued, it returns the task so
+// dispatch can try again against a different worker; otherwise nil.
+func (s *Scheduler) dispatchAttempt(task *Task) (*Task, error) {
 	s.mu.Lock()
 	if task.Status != TaskQueued {
 		s.mu.Unlock()
-		return nil
+		return nil, nil
+	}
+	// Claim the task for the assignment step. With Raft attached, a task
+	// stays TaskQueued until its assignment entry commits and is applied,
+	// so the Status check alone cannot stop a second caller (the submit
+	// path and the leader's sweep both dispatch new tasks) from picking a
+	// worker and handing the same task out twice. The claim is released
+	// as soon as the assignment is settled, before the network call to the
+	// worker, so a hung worker never blocks reassigning the task.
+	if task.dispatching {
+		s.mu.Unlock()
+		return nil, nil
 	}
 	worker := s.pickWorkerLocked(task.tried)
 	if worker == nil {
 		s.mu.Unlock()
-		return ErrNoWorkersAvailable
+		return nil, ErrNoWorkersAvailable
 	}
+	task.dispatching = true
 	workerID := worker.ID
 	workerAddr := worker.Addr
 	taskID := task.ID
@@ -274,24 +305,16 @@ func (s *Scheduler) dispatch(task *Task) error {
 		task.WorkerID = workerID
 		task.Attempts++
 		worker.ActiveTasks[task.ID] = true
+		task.dispatching = false
 		s.mu.Unlock()
 	} else {
 		s.mu.Unlock()
-		_, _, commitCh, err := proposer.Propose(raft.LogEntry{
-			Type:     raft.CmdAssign,
-			TaskID:   taskID,
-			WorkerID: workerID,
-		})
+		err := s.proposeAssign(taskID, workerID)
+		s.mu.Lock()
+		task.dispatching = false
+		s.mu.Unlock()
 		if err != nil {
-			return err
-		}
-		select {
-		case ok := <-commitCh:
-			if !ok {
-				return ErrNotLeader
-			}
-		case <-time.After(10 * time.Second):
-			return errors.New("scheduler: timed out waiting for assignment commit")
+			return nil, err
 		}
 	}
 
@@ -312,15 +335,15 @@ func (s *Scheduler) dispatch(task *Task) error {
 			s.mu.Unlock()
 
 			if requeued {
-				s.dispatch(t)
+				return t, err
 			}
-			return err
+			return nil, err
 		}
 
 		s.mu.Lock()
 		if task.Status != TaskAssigned || task.WorkerID != workerID {
 			s.mu.Unlock()
-			return err
+			return nil, err
 		}
 		if w, ok := s.workers[workerID]; ok {
 			delete(w.ActiveTasks, task.ID)
@@ -330,11 +353,32 @@ func (s *Scheduler) dispatch(task *Task) error {
 		s.mu.Unlock()
 
 		if requeued {
-			s.dispatch(task)
+			return task, err
 		}
+		return nil, err
+	}
+	return nil, nil
+}
+
+// proposeAssign replicates an assignment entry and waits for it to commit.
+func (s *Scheduler) proposeAssign(taskID, workerID string) error {
+	_, _, commitCh, err := s.proposer.Propose(raft.LogEntry{
+		Type:     raft.CmdAssign,
+		TaskID:   taskID,
+		WorkerID: workerID,
+	})
+	if err != nil {
 		return err
 	}
-	return nil
+	select {
+	case ok := <-commitCh:
+		if !ok {
+			return ErrNotLeader
+		}
+		return nil
+	case <-time.After(10 * time.Second):
+		return errors.New("scheduler: timed out waiting for assignment commit")
+	}
 }
 
 // requeueOrFailLocked decides a task's fate after it comes off a
