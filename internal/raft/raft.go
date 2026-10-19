@@ -66,9 +66,11 @@ type HeartbeatArgs struct {
 }
 
 type HeartbeatReply struct {
-	Term       int
-	Success    bool
-	MatchIndex int
+	Term          int
+	Success       bool
+	MatchIndex    int
+	ConflictTerm  int
+	ConflictIndex int
 }
 
 // Node is a single participant in the leader election cluster.
@@ -427,9 +429,28 @@ func (n *Node) sendHeartbeats() {
 				}
 				n.checkCommitLocked()
 			} else {
-				// Follower log repair on mismatch
-				if n.nextIndex[peerID] > 1 {
+				// Follower fast log rollback on mismatch
+				if reply.ConflictTerm > 0 {
+					// Leader searches its own log for the last entry with ConflictTerm
+					lastIdxForTerm := -1
+					for i := len(n.log) - 1; i >= 0; i-- {
+						if n.log[i].Term == reply.ConflictTerm {
+							lastIdxForTerm = i + 1
+							break
+						}
+					}
+					if lastIdxForTerm > 0 {
+						n.nextIndex[peerID] = lastIdxForTerm + 1
+					} else {
+						n.nextIndex[peerID] = reply.ConflictIndex
+					}
+				} else if reply.ConflictIndex > 0 {
+					n.nextIndex[peerID] = reply.ConflictIndex
+				} else if n.nextIndex[peerID] > 1 {
 					n.nextIndex[peerID]--
+				}
+				if n.nextIndex[peerID] < 1 {
+					n.nextIndex[peerID] = 1
 				}
 			}
 		}(peer, prevIndex, prevTerm, entries)
@@ -548,11 +569,31 @@ func (n *Node) HandleHeartbeat(args *HeartbeatArgs) *HeartbeatReply {
 	if args.PrevLogIndex > 0 {
 		if len(n.log) < args.PrevLogIndex {
 			_ = n.persistLocked()
-			return &HeartbeatReply{Term: n.currentTerm, Success: false, MatchIndex: len(n.log)}
+			return &HeartbeatReply{
+				Term:          n.currentTerm,
+				Success:       false,
+				MatchIndex:    len(n.log),
+				ConflictTerm:  0,
+				ConflictIndex: len(n.log) + 1,
+			}
 		}
 		if n.log[args.PrevLogIndex-1].Term != args.PrevLogTerm {
+			conflictTerm := n.log[args.PrevLogIndex-1].Term
+			conflictIndex := args.PrevLogIndex
+			for i := 0; i < len(n.log); i++ {
+				if n.log[i].Term == conflictTerm {
+					conflictIndex = i + 1
+					break
+				}
+			}
 			_ = n.persistLocked()
-			return &HeartbeatReply{Term: n.currentTerm, Success: false, MatchIndex: args.PrevLogIndex - 1}
+			return &HeartbeatReply{
+				Term:          n.currentTerm,
+				Success:       false,
+				MatchIndex:    args.PrevLogIndex - 1,
+				ConflictTerm:  conflictTerm,
+				ConflictIndex: conflictIndex,
+			}
 		}
 	}
 
