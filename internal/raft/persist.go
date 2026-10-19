@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 // Persister durably stores the two pieces of Raft state that must
@@ -92,10 +93,15 @@ func (p *FilePersister) Save(term int, votedFor string) error {
 	}
 
 	// fsync the directory so the rename itself survives a crash.
-	d, err := os.Open(dir)
-	if err != nil {
-		return err
+	// On Windows, directory handles do not support FlushFileBuffers and NTFS
+	// journals directory metadata automatically.
+	if runtime.GOOS != "windows" {
+		d, err := os.Open(dir)
+		if err != nil {
+			return err
+		}
+		defer d.Close()
+		return d.Sync()
 	}
-	defer d.Close()
-	return d.Sync()
+	return nil
 }

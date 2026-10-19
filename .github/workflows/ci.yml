@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Test and Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          check-latest: true
+
+      - name: Verify formatting
+        run: |
+          if [ -n "$(gofmt -l .)" ]; then
+            echo "The following files are not formatted properly:"
+            gofmt -l .
+            exit 1
+          fi
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run unit and race tests
+        run: go test -v -race -count=1 ./...
+
+      - name: Build binaries
+        run: |
+          mkdir -p bin
+          for c in scheduler worker submit status chaos; do
+            go build -o bin/$c ./cmd/$c
+          done
+
+      - name: Run chaos test harness
+        run: go run ./cmd/chaos -bin ./bin -rounds 3 -tasks 5

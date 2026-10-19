@@ -94,7 +94,7 @@ func TestShellExecutorTimeoutKillsWholeProcessGroup(t *testing.T) {
 	survivor := filepath.Join(t.TempDir(), "survivor")
 	exec := NewShellExecutor("w1", 200*time.Millisecond)
 
-	err := exec("t1", fmt.Sprintf("(sleep 1; echo survived > '%s') & wait", survivor))
+	err := exec("t1", fmt.Sprintf("(sleep 1; echo survived > '%s') & wait", filepath.ToSlash(survivor)))
 	if err == nil || !strings.Contains(err.Error(), "timed out") {
 		t.Fatalf("expected a timeout error, got: %v", err)
 	}
