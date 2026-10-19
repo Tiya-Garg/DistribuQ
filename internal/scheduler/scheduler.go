@@ -6,7 +6,6 @@ package scheduler
 import (
 	"encoding/json"
 	"errors"
-	"os"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -815,7 +814,17 @@ func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
 		}
 
 	case raft.CmdSnapshot:
-		// CmdSnapshot is currently a no-op; no snapshot logic implemented yet.
+		// Take a snapshot of the scheduler state and persist it.
+		data, err := s.BuildSnapshot()
+		if err != nil {
+			// Log the error but continue; snapshot failure should not block progress.
+			log.Printf("scheduler snapshot error: %v", err)
+			break
+		}
+		// Write snapshot to a file (overwrites previous snapshot).
+		if err := os.WriteFile("snapshot.json", data, 0o644); err != nil {
+			log.Printf("failed to write snapshot file: %v", err)
+		}
 
 
 	case raft.CmdAssign:
