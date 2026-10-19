@@ -494,9 +494,7 @@ func (n *Node) HandleRequestVote(args *RequestVoteArgs) *RequestVoteReply {
 		return &RequestVoteReply{Term: n.currentTerm, VoteGranted: false}
 	}
 	if args.Term > n.currentTerm {
-		n.currentTerm = args.Term
-		n.state = Follower
-		n.votedFor = ""
+		n.stepDownLocked(args.Term)
 	}
 
 	canVote := n.votedFor == "" || n.votedFor == args.CandidateID
@@ -539,16 +537,12 @@ func (n *Node) HandleHeartbeat(args *HeartbeatArgs) *HeartbeatReply {
 
 	wasLeaderOrCandidate := n.state != Follower
 	if args.Term > n.currentTerm {
-		n.currentTerm = args.Term
-		n.votedFor = ""
+		n.stepDownLocked(args.Term)
+	} else if wasLeaderOrCandidate {
+		n.stepDownLocked(n.currentTerm)
 	}
-	n.state = Follower
 	n.leaderID = args.LeaderID
 	n.electionResetAt = time.Now()
-
-	if wasLeaderOrCandidate && n.onBecomeFollower != nil {
-		go n.onBecomeFollower()
-	}
 
 	// PrevLog consistency check
 	if args.PrevLogIndex > 0 {
