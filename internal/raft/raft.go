@@ -42,6 +42,7 @@ func (s State) String() string {
 type Transport interface {
 	RequestVote(peerID string, args *RequestVoteArgs) (*RequestVoteReply, error)
 	Heartbeat(peerID string, args *HeartbeatArgs) (*HeartbeatReply, error)
+	InstallSnapshot(peerID string, args *InstallSnapshotArgs) (*InstallSnapshotReply, error)
 }
 
 type RequestVoteArgs struct {
@@ -71,6 +72,44 @@ type HeartbeatReply struct {
 	MatchIndex    int
 	ConflictTerm  int
 	ConflictIndex int
+}
+
+// InstallSnapshotArgs are sent by a leader to bring a follower up to date via a snapshot.
+type InstallSnapshotArgs struct {
+	Term              int    // leader's term
+	LeaderID          string // leader's ID
+	LastIncludedIndex int    // index of last entry included in snapshot
+	LastIncludedTerm  int    // term of last entry included in snapshot
+	Data              []byte // opaque snapshot data
+}
+
+// InstallSnapshotReply is the follower's response to a snapshot install.
+type InstallSnapshotReply struct {
+	Term    int  // current term, for leader to update
+	Success bool // true if snapshot was installed
+}
+
+// HandleInstallSnapshot processes an InstallSnapshot RPC on the follower.
+func (n *Node) HandleInstallSnapshot(args *InstallSnapshotArgs) *InstallSnapshotReply {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	// If term is stale, reject.
+	if args.Term < n.currentTerm {
+		return &InstallSnapshotReply{Term: n.currentTerm, Success: false}
+	}
+
+	// Update term and leader.
+	if args.Term > n.currentTerm {
+		n.currentTerm = args.Term
+		n.votedFor = ""
+		n.state = Follower
+		n.leaderID = args.LeaderID
+	}
+
+	// In a full implementation we would replace the state machine with the snapshot data.
+	// For now we simply accept the snapshot.
+	return &InstallSnapshotReply{Term: n.currentTerm, Success: true}
 }
 
 // Node is a single participant in the leader election cluster.
