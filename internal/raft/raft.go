@@ -102,7 +102,8 @@ type Node struct {
 	electionResetAt time.Time
 	electionTimeout time.Duration
 
-	stopCh chan struct{}
+	stopCh  chan struct{}
+	applyCh chan LogEntry
 
 	// onBecomeLeader / onBecomeFollower let the scheduler react to
 	// role changes (e.g. start/stop accepting task submissions).
@@ -112,13 +113,32 @@ type Node struct {
 }
 
 func NewNode(id string, peers []string, transport Transport) *Node {
-	return &Node{
+	n := &Node{
 		ID:              id,
 		Peers:           peers,
 		state:           Follower,
 		transport:       transport,
 		electionTimeout: randomElectionTimeout(),
 		stopCh:          make(chan struct{}),
+		applyCh:         make(chan LogEntry, 1024),
+	}
+	go n.applyLoop()
+	return n
+}
+
+func (n *Node) applyLoop() {
+	for {
+		select {
+		case <-n.stopCh:
+			return
+		case entry := <-n.applyCh:
+			n.mu.Lock()
+			fn := n.onApply
+			n.mu.Unlock()
+			if fn != nil {
+				fn(entry)
+			}
+		}
 	}
 }
 
@@ -443,12 +463,12 @@ func (n *Node) checkCommitLocked() {
 				}
 			}
 			toApply := n.applyCommittedLocked()
-			if len(toApply) > 0 && n.onApply != nil {
-				go func(ents []LogEntry) {
-					for _, e := range ents {
-						n.onApply(e)
-					}
-				}(toApply)
+			for _, e := range toApply {
+				select {
+				case n.applyCh <- e:
+				default:
+					go func(entry LogEntry) { n.applyCh <- entry }(e)
+				}
 			}
 			break
 		}
@@ -575,12 +595,12 @@ func (n *Node) HandleHeartbeat(args *HeartbeatArgs) *HeartbeatReply {
 			n.commitIndex = len(n.log)
 		}
 		toApply := n.applyCommittedLocked()
-		if len(toApply) > 0 && n.onApply != nil {
-			go func(ents []LogEntry) {
-				for _, e := range ents {
-					n.onApply(e)
-				}
-			}(toApply)
+		for _, e := range toApply {
+			select {
+			case n.applyCh <- e:
+			default:
+				go func(entry LogEntry) { n.applyCh <- entry }(e)
+			}
 		}
 	}
 
@@ -624,12 +644,12 @@ func (n *Node) Propose(entry LogEntry) (int, int, <-chan bool, error) {
 		n.commitIndex = index
 		commitCh <- true
 		toApply := n.applyCommittedLocked()
-		if len(toApply) > 0 && n.onApply != nil {
-			go func(ents []LogEntry) {
-				for _, e := range ents {
-					n.onApply(e)
-				}
-			}(toApply)
+		for _, e := range toApply {
+			select {
+			case n.applyCh <- e:
+			default:
+				go func(entry LogEntry) { n.applyCh <- entry }(e)
+			}
 		}
 	}
 
