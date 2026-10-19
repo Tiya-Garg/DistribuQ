@@ -627,3 +627,48 @@ func TestLeadershipLossSignalsFalseToCommitWaiters(t *testing.T) {
 		t.Fatal("timed out waiting for leadership loss notification on commitCh")
 	}
 }
+
+func TestFastLogRollbackOnConflict(t *testing.T) {
+	_, nodes := newCluster(t, []string{"n1", "n2"})
+	n1, n2 := nodes[0], nodes[1]
+
+	// Leader n1 has 50 entries in term 5
+	n1.mu.Lock()
+	n1.state = Leader
+	n1.currentTerm = 5
+	n1.leaderID = "n1"
+	n1.log = make([]LogEntry, 50)
+	for i := 0; i < 50; i++ {
+		n1.log[i] = LogEntry{Index: i + 1, Term: 5, Type: CmdSubmit, TaskID: fmt.Sprintf("leader-%d", i+1)}
+	}
+	n1.nextIndex = map[string]int{"n2": 51}
+	n1.matchIndex = map[string]int{"n2": 0}
+	n1.mu.Unlock()
+
+	// Follower n2 has 50 conflicting entries in term 3
+	n2.mu.Lock()
+	n2.currentTerm = 3
+	n2.state = Follower
+	n2.log = make([]LogEntry, 50)
+	for i := 0; i < 50; i++ {
+		n2.log[i] = LogEntry{Index: i + 1, Term: 3, Type: CmdSubmit, TaskID: fmt.Sprintf("conflicting-%d", i+1)}
+	}
+	n2.mu.Unlock()
+
+	// With fast rollback, the leader should jump back across the entire conflicting term
+	// within 2 heartbeat rounds, instead of decrementing nextIndex by 1 for 50 rounds!
+	n1.sendHeartbeats()
+	time.Sleep(30 * time.Millisecond)
+	n1.sendHeartbeats()
+	time.Sleep(30 * time.Millisecond)
+
+	n1.mu.Lock()
+	nextIdx := n1.nextIndex["n2"]
+	n1.mu.Unlock()
+
+	// n2 had no entries in term 5 or term 4, so fast rollback should have set nextIndex to 1 (or match the leader's start)
+	// without 50 roundtrips.
+	if nextIdx > 2 {
+		t.Fatalf("expected nextIndex to fast rollback close to 1 in 2 rounds, but nextIndex is %d", nextIdx)
+	}
+}
