@@ -9,15 +9,35 @@ import (
 	"runtime"
 )
 
-// Persister durably stores the two pieces of Raft state that must
-// survive a restart: currentTerm and votedFor. If a node forgets its
-// vote across a crash, it can vote for a second candidate in the same
-// term and two leaders can be elected.
+// CommandType represents the type of task event recorded in the Raft log.
+type CommandType string
+
+const (
+	CmdSubmit   CommandType = "submitted"
+	CmdAssign   CommandType = "assigned"
+	CmdComplete CommandType = "completed"
+	CmdFail     CommandType = "failed"
+)
+
+// LogEntry is an entry in the replicated Raft log representing a task event.
+type LogEntry struct {
+	Index    int         `json:"index"`
+	Term     int         `json:"term"`
+	Type     CommandType `json:"type"`
+	TaskID   string      `json:"task_id"`
+	Payload  string      `json:"payload,omitempty"`
+	WorkerID string      `json:"worker_id,omitempty"`
+	Cause    string      `json:"cause,omitempty"`
+}
+
+// Persister durably stores the Raft state that must survive a restart:
+// currentTerm, votedFor, and the replicated log. If a node forgets its
+// vote or log across a crash, safety guarantees can be violated.
 //
 // Save must not return until the data is on stable storage.
 type Persister interface {
-	Load() (term int, votedFor string, err error)
-	Save(term int, votedFor string) error
+	Load() (term int, votedFor string, log []LogEntry, err error)
+	Save(term int, votedFor string, log []LogEntry) error
 }
 
 // FilePersister is a Persister backed by a single JSON file. Writes go
@@ -34,30 +54,31 @@ func NewFilePersister(path string) *FilePersister {
 }
 
 type persistedState struct {
-	Term     int    `json:"term"`
-	VotedFor string `json:"voted_for"`
+	Term     int        `json:"term"`
+	VotedFor string     `json:"voted_for"`
+	Log      []LogEntry `json:"log,omitempty"`
 }
 
 // Load returns the saved state. A missing file is a fresh node, not an
-// error: it returns term 0 and no vote.
-func (p *FilePersister) Load() (int, string, error) {
+// error: it returns term 0, no vote, and an empty log.
+func (p *FilePersister) Load() (int, string, []LogEntry, error) {
 	data, err := os.ReadFile(p.path)
 	if errors.Is(err, os.ErrNotExist) {
-		return 0, "", nil
+		return 0, "", nil, nil
 	}
 	if err != nil {
-		return 0, "", fmt.Errorf("raft: read %s: %w", p.path, err)
+		return 0, "", nil, fmt.Errorf("raft: read %s: %w", p.path, err)
 	}
 	var st persistedState
 	if err := json.Unmarshal(data, &st); err != nil {
-		return 0, "", fmt.Errorf("raft: corrupt state file %s: %w", p.path, err)
+		return 0, "", nil, fmt.Errorf("raft: corrupt state file %s: %w", p.path, err)
 	}
-	return st.Term, st.VotedFor, nil
+	return st.Term, st.VotedFor, st.Log, nil
 }
 
 // Save atomically and durably replaces the stored state.
-func (p *FilePersister) Save(term int, votedFor string) error {
-	data, err := json.Marshal(persistedState{Term: term, VotedFor: votedFor})
+func (p *FilePersister) Save(term int, votedFor string, logEntries []LogEntry) error {
+	data, err := json.Marshal(persistedState{Term: term, VotedFor: votedFor, Log: logEntries})
 	if err != nil {
 		return err
 	}

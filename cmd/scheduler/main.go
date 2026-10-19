@@ -54,15 +54,26 @@ func main() {
 
 	transport := raft.NewRPCTransport(peerAddrs)
 	node := raft.NewNode(*id, peerIDs, transport)
+	sched.SetRaftProposer(node)
+	node.OnApply(func(entry raft.LogEntry) {
+		sched.ApplyEntry(entry)
+		if node.State() == raft.Leader && entry.Type == raft.CmdSubmit {
+			sched.KickDispatch()
+		}
+	})
 	if *dataDir != "" {
 		statePath := filepath.Join(*dataDir, *id+".raft.json")
 		if err := node.SetPersister(raft.NewFilePersister(statePath)); err != nil {
 			log.Fatalf("failed to restore raft state from %s: %v", statePath, err)
 		}
-		log.Printf("[%s] raft state at %s (restored term %d)", *id, statePath, node.Term())
+		for _, entry := range node.Log() {
+			sched.ApplyEntry(entry)
+		}
+		log.Printf("[%s] raft state at %s (restored term %d, log len %d)", *id, statePath, node.Term(), node.LastLogIndex())
 	}
 	node.OnBecomeLeader(func() {
 		log.Printf("[%s] elected LEADER (term %d) -- now accepting task submissions", *id, node.Term())
+		sched.RebuildQueueOnLeadership()
 	})
 	node.OnBecomeFollower(func() {
 		log.Printf("[%s] stepped down to FOLLOWER (leader is %q)", *id, node.LeaderID())

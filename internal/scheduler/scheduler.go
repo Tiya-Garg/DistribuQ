@@ -9,7 +9,14 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/TiyaGarg06/DistribuQ/internal/raft"
 )
+
+// RaftProposer defines the interface needed to propose log entries to a Raft leader.
+type RaftProposer interface {
+	Propose(entry raft.LogEntry) (int, int, <-chan bool, error)
+}
 
 type TaskStatus string
 
@@ -110,6 +117,9 @@ type Scheduler struct {
 	// without ever losing a request for another pass (see sweepAsync).
 	sweeping   atomic.Bool
 	sweepAgain atomic.Bool
+
+	// proposer, if set, replicates task events across the Raft cluster before applying.
+	proposer RaftProposer
 }
 
 func NewScheduler(dispatchFn func(workerID, addr string, task *Task) error) *Scheduler {
@@ -119,6 +129,21 @@ func NewScheduler(dispatchFn func(workerID, addr string, task *Task) error) *Sch
 		dispatchFn: dispatchFn,
 		kick:       make(chan struct{}, 1),
 		stopCh:     make(chan struct{}),
+	}
+}
+
+// SetRaftProposer attaches a Raft node as proposer for replicating task events.
+func (s *Scheduler) SetRaftProposer(p RaftProposer) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.proposer = p
+}
+
+// KickDispatch nudges the worker monitor to sweep queued tasks immediately.
+func (s *Scheduler) KickDispatch() {
+	select {
+	case s.kick <- struct{}{}:
+	default:
 	}
 }
 
@@ -167,6 +192,9 @@ func (s *Scheduler) Heartbeat(workerID string) error {
 // least-loaded healthy worker. It rejects an empty ID (ErrEmptyTaskID)
 // and an ID that has been used before (ErrDuplicateTask); in both
 // cases nothing is queued and existing tasks are left untouched.
+//
+// When a Raft proposer is attached, the task is committed across a
+// majority before SubmitTask returns successfully.
 func (s *Scheduler) SubmitTask(id, payload string) (*Task, error) {
 	if id == "" {
 		return nil, ErrEmptyTaskID
@@ -177,12 +205,43 @@ func (s *Scheduler) SubmitTask(id, payload string) (*Task, error) {
 		s.mu.Unlock()
 		return nil, ErrDuplicateTask
 	}
-	s.nextSeq++
-	task := &Task{ID: id, Payload: payload, Status: TaskQueued, MaxRetries: 3, seq: s.nextSeq}
-	s.tasks[id] = task
+	proposer := s.proposer
+	if proposer == nil {
+		s.nextSeq++
+		task := &Task{ID: id, Payload: payload, Status: TaskQueued, MaxRetries: 3, seq: s.nextSeq}
+		s.tasks[id] = task
+		s.mu.Unlock()
+
+		_ = s.dispatch(task)
+		return task, nil
+	}
 	s.mu.Unlock()
 
-	_ = s.dispatch(task)
+	_, _, commitCh, err := proposer.Propose(raft.LogEntry{
+		Type:    raft.CmdSubmit,
+		TaskID:  id,
+		Payload: payload,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	select {
+	case ok := <-commitCh:
+		if !ok {
+			return nil, ErrNotLeader
+		}
+	case <-time.After(10 * time.Second):
+		return nil, errors.New("scheduler: submission timed out waiting for majority commit")
+	}
+
+	s.mu.Lock()
+	task := s.tasks[id]
+	s.mu.Unlock()
+
+	if task != nil {
+		_ = s.dispatch(task)
+	}
 	return task, nil
 }
 
@@ -194,13 +253,6 @@ func (s *Scheduler) SubmitTask(id, payload string) (*Task, error) {
 // attempt increments task.Attempts, and once Attempts reaches
 // MaxRetries the task is marked TaskFailed instead of requeued, which
 // stops the recursion.
-//
-// dispatch only acts on tasks that are still queued. Several code
-// paths can try to dispatch the same task around the same time (the
-// failure path, the submit path, and the monitor's sweep of queued
-// tasks); whichever gets here first takes it, and the rest see it is
-// already assigned and return nil instead of dispatching it a second
-// time.
 func (s *Scheduler) dispatch(task *Task) error {
 	s.mu.Lock()
 	if task.Status != TaskQueued {
@@ -212,21 +264,60 @@ func (s *Scheduler) dispatch(task *Task) error {
 		s.mu.Unlock()
 		return ErrNoWorkersAvailable
 	}
-	task.Status = TaskAssigned
-	task.WorkerID = worker.ID
-	task.Attempts++
-	worker.ActiveTasks[task.ID] = true
-	addr := worker.Addr
 	workerID := worker.ID
-	s.mu.Unlock()
+	workerAddr := worker.Addr
+	taskID := task.ID
+	proposer := s.proposer
 
-	if err := s.dispatchFn(workerID, addr, task); err != nil {
+	if proposer == nil {
+		task.Status = TaskAssigned
+		task.WorkerID = workerID
+		task.Attempts++
+		worker.ActiveTasks[task.ID] = true
+		s.mu.Unlock()
+	} else {
+		s.mu.Unlock()
+		_, _, commitCh, err := proposer.Propose(raft.LogEntry{
+			Type:     raft.CmdAssign,
+			TaskID:   taskID,
+			WorkerID: workerID,
+		})
+		if err != nil {
+			return err
+		}
+		select {
+		case ok := <-commitCh:
+			if !ok {
+				return ErrNotLeader
+			}
+		case <-time.After(10 * time.Second):
+			return errors.New("scheduler: timed out waiting for assignment commit")
+		}
+	}
+
+	if err := s.dispatchFn(workerID, workerAddr, task); err != nil {
+		if proposer != nil {
+			_, _, commitCh, perr := proposer.Propose(raft.LogEntry{
+				Type:     raft.CmdFail,
+				TaskID:   taskID,
+				WorkerID: workerID,
+				Cause:    err.Error(),
+			})
+			if perr == nil {
+				<-commitCh
+			}
+			s.mu.Lock()
+			t := s.tasks[taskID]
+			requeued := t != nil && t.Status == TaskQueued
+			s.mu.Unlock()
+
+			if requeued {
+				s.dispatch(t)
+			}
+			return err
+		}
+
 		s.mu.Lock()
-		// The call may have been stuck for a long time. If, meanwhile,
-		// the worker was reaped and the task reassigned, it no longer
-		// belongs to this attempt and there is nothing to roll back:
-		// touching it now would requeue or double-dispatch a task that
-		// is already running somewhere else.
 		if task.Status != TaskAssigned || task.WorkerID != workerID {
 			s.mu.Unlock()
 			return err
@@ -327,18 +418,41 @@ func (s *Scheduler) CompleteTaskBy(taskID, workerID string) error {
 
 func (s *Scheduler) completeTask(taskID, workerID string, checkWorker bool) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	task, ok := s.tasks[taskID]
 	if !ok {
+		s.mu.Unlock()
 		return ErrTaskNotFound
 	}
 	if checkWorker && task.WorkerID != workerID {
+		s.mu.Unlock()
 		return ErrStaleReport
 	}
-	task.Status = TaskCompleted
-	if w, ok := s.workers[task.WorkerID]; ok {
-		delete(w.ActiveTasks, taskID)
+	proposer := s.proposer
+	if proposer == nil {
+		task.Status = TaskCompleted
+		if w, ok := s.workers[task.WorkerID]; ok {
+			delete(w.ActiveTasks, taskID)
+		}
+		s.mu.Unlock()
+		return nil
+	}
+	s.mu.Unlock()
+
+	_, _, commitCh, err := proposer.Propose(raft.LogEntry{
+		Type:     raft.CmdComplete,
+		TaskID:   taskID,
+		WorkerID: workerID,
+	})
+	if err != nil {
+		return err
+	}
+	select {
+	case ok := <-commitCh:
+		if !ok {
+			return ErrNotLeader
+		}
+	case <-time.After(10 * time.Second):
+		return errors.New("scheduler: complete timed out waiting for commit")
 	}
 	return nil
 }
@@ -375,15 +489,47 @@ func (s *Scheduler) failTask(taskID, workerID string, checkWorker bool) error {
 		s.mu.Unlock()
 		return ErrStaleReport
 	}
-	if w, ok := s.workers[task.WorkerID]; ok {
-		delete(w.ActiveTasks, taskID)
+	proposer := s.proposer
+	if proposer == nil {
+		if w, ok := s.workers[task.WorkerID]; ok {
+			delete(w.ActiveTasks, taskID)
+		}
+		s.requeueOrFailLocked(task)
+		requeued := task.Status == TaskQueued
+		s.mu.Unlock()
+
+		if requeued {
+			s.dispatch(task)
+		}
+		return nil
 	}
-	s.requeueOrFailLocked(task)
-	requeued := task.Status == TaskQueued
+	s.mu.Unlock()
+
+	_, _, commitCh, err := proposer.Propose(raft.LogEntry{
+		Type:     raft.CmdFail,
+		TaskID:   taskID,
+		WorkerID: workerID,
+		Cause:    "worker reported failure",
+	})
+	if err != nil {
+		return err
+	}
+	select {
+	case ok := <-commitCh:
+		if !ok {
+			return ErrNotLeader
+		}
+	case <-time.After(10 * time.Second):
+		return errors.New("scheduler: fail timed out waiting for commit")
+	}
+
+	s.mu.Lock()
+	t := s.tasks[taskID]
+	requeued := t != nil && t.Status == TaskQueued
 	s.mu.Unlock()
 
 	if requeued {
-		s.dispatch(task)
+		s.dispatch(t)
 	}
 	return nil
 }
@@ -496,7 +642,7 @@ func (s *Scheduler) reapDeadWorkers() {
 	now := time.Now()
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	var deadTasks []struct{ TaskID, WorkerID string }
 	for id, w := range s.workers {
 		if now.Sub(w.LastHeartbeat) <= WorkerTimeout {
 			continue
@@ -509,9 +655,38 @@ func (s *Scheduler) reapDeadWorkers() {
 			if t.Status == TaskCompleted || t.Status == TaskFailed {
 				continue // already finished; nothing to recover
 			}
-			s.requeueOrFailLocked(t)
+			deadTasks = append(deadTasks, struct{ TaskID, WorkerID string }{taskID, id})
 		}
 		delete(s.workers, id)
+	}
+	proposer := s.proposer
+	if proposer == nil {
+		for _, dt := range deadTasks {
+			if t, ok := s.tasks[dt.TaskID]; ok && t.WorkerID == dt.WorkerID {
+				s.requeueOrFailLocked(t)
+			}
+		}
+		s.mu.Unlock()
+		return
+	}
+	s.mu.Unlock()
+
+	for _, dt := range deadTasks {
+		s.mu.Lock()
+		t, ok := s.tasks[dt.TaskID]
+		valid := ok && t.WorkerID == dt.WorkerID && t.Status == TaskAssigned
+		s.mu.Unlock()
+		if valid {
+			_, _, commitCh, err := proposer.Propose(raft.LogEntry{
+				Type:     raft.CmdFail,
+				TaskID:   dt.TaskID,
+				WorkerID: dt.WorkerID,
+				Cause:    "worker heartbeat timeout",
+			})
+			if err == nil {
+				<-commitCh
+			}
+		}
 	}
 }
 
@@ -526,4 +701,75 @@ func (s *Scheduler) Snapshot() (tasks map[string]TaskStatus, workerCount int) {
 		tasks[id] = t.Status
 	}
 	return tasks, len(s.workers)
+}
+
+// ApplyEntry applies a committed Raft log entry to the scheduler's state.
+func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	switch entry.Type {
+	case raft.CmdSubmit:
+		if _, exists := s.tasks[entry.TaskID]; !exists {
+			s.nextSeq++
+			s.tasks[entry.TaskID] = &Task{
+				ID:         entry.TaskID,
+				Payload:    entry.Payload,
+				Status:     TaskQueued,
+				MaxRetries: 3,
+				seq:        s.nextSeq,
+			}
+		}
+
+	case raft.CmdAssign:
+		task, ok := s.tasks[entry.TaskID]
+		if !ok {
+			s.nextSeq++
+			task = &Task{
+				ID:         entry.TaskID,
+				Payload:    entry.Payload,
+				Status:     TaskQueued,
+				MaxRetries: 3,
+				seq:        s.nextSeq,
+			}
+			s.tasks[entry.TaskID] = task
+		}
+		task.Status = TaskAssigned
+		task.WorkerID = entry.WorkerID
+		task.Attempts++
+		if w, ok := s.workers[entry.WorkerID]; ok {
+			w.ActiveTasks[entry.TaskID] = true
+		}
+
+	case raft.CmdComplete:
+		if task, ok := s.tasks[entry.TaskID]; ok {
+			task.Status = TaskCompleted
+			if w, ok := s.workers[task.WorkerID]; ok {
+				delete(w.ActiveTasks, entry.TaskID)
+			}
+		}
+
+	case raft.CmdFail:
+		if task, ok := s.tasks[entry.TaskID]; ok {
+			if w, ok := s.workers[task.WorkerID]; ok {
+				delete(w.ActiveTasks, entry.TaskID)
+			}
+			s.requeueOrFailLocked(task)
+		}
+	}
+}
+
+// RebuildQueueOnLeadership requeues all tasks left in TaskAssigned back to
+// TaskQueued and triggers a sweep so that surviving workers can be dispatched work.
+func (s *Scheduler) RebuildQueueOnLeadership() {
+	s.mu.Lock()
+	for _, task := range s.tasks {
+		if task.Status == TaskAssigned {
+			task.Status = TaskQueued
+			task.WorkerID = ""
+		}
+	}
+	s.mu.Unlock()
+
+	s.sweepAsync()
 }
