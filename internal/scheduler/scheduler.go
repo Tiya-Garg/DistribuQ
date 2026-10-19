@@ -765,9 +765,9 @@ func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
 			}
 		}
 
-	case raft.CmdNoop:
-		// No-op command; deliberately ignored.
-		// Ensures leader can commit an entry without side effects.
+	case raft.CmdSnapshot:
+		// Snapshot command placeholder – no action for now.
+
 
 	case raft.CmdAssign:
 		task, ok := s.tasks[entry.TaskID]

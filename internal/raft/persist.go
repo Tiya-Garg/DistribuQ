@@ -18,6 +18,8 @@ const (
 	CmdComplete CommandType = "completed"
 	CmdFail     CommandType = "failed"
 	CmdNoop     CommandType = "noop"
+	// CmdSnapshot is a placeholder for future snapshotting logic.
+	CmdSnapshot CommandType = "snapshot"
 )
 
 // LogEntry is an entry in the replicated Raft log representing a task event.
