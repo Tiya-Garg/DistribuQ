@@ -583,3 +583,47 @@ func TestApplyOrderingStrictlySequential(t *testing.T) {
 		}
 	}
 }
+
+func TestLeadershipLossSignalsFalseToCommitWaiters(t *testing.T) {
+	ft, nodes := newCluster(t, []string{"n1", "n2", "n3"})
+
+	// Start n1 as leader
+	n1 := nodes[0]
+	n1.startElection()
+	if n1.State() != Leader {
+		t.Fatalf("expected n1 to be leader")
+	}
+
+	// Isolate n1 so it cannot replicate
+	ft.Partition([]string{"n1"}, []string{"n2", "n3"})
+
+	// Propose entry on isolated leader n1
+	_, _, commitCh, err := n1.Propose(LogEntry{
+		Type:   CmdSubmit,
+		TaskID: "uncommitted-task",
+	})
+	if err != nil {
+		t.Fatalf("propose failed: %v", err)
+	}
+
+	// n2 and n3 start an election in a higher term
+	n2 := nodes[1]
+	n2.startElection()
+
+	// Reconnect and have n2 send heartbeat to n1 with higher term
+	ft.Connect("n2", "n1")
+	ft.Connect("n1", "n2")
+
+	// Trigger heartbeat from new leader n2 to n1
+	n2.sendHeartbeats()
+
+	// The isolated former leader n1 must step down and signal false on commitCh
+	select {
+	case ok := <-commitCh:
+		if ok {
+			t.Fatal("expected commitCh to signal false upon leadership loss, got true")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for leadership loss notification on commitCh")
+	}
+}
