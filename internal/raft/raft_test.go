@@ -98,6 +98,18 @@ func (f *fakeTransport) Heartbeat(peerID string, args *HeartbeatArgs) (*Heartbea
 	}
 	return peer.HandleHeartbeat(args), nil
 }
+func (f *fakeTransport) InstallSnapshot(peerID string, args *InstallSnapshotArgs) (*InstallSnapshotReply, error) {
+    if f.isBlocked(args.LeaderID, peerID) {
+        return nil, errNoPeer
+    }
+    f.mu.Lock()
+    peer, ok := f.nodes[peerID]
+    f.mu.Unlock()
+    if !ok {
+        return nil, errNoPeer
+    }
+    return peer.HandleInstallSnapshot(args), nil
+}
 
 var errNoPeer = &peerError{"no such peer"}
 
