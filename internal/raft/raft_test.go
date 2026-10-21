@@ -15,10 +15,8 @@ type fakeTransport struct {
 	nodes   map[string]*Node
 	blocked map[string]map[string]bool
 }
-	mu      sync.Mutex
-	nodes   map[string]*Node
-	blocked map[string]map[string]bool
-}
+
+
 
 func newFakeTransport() *fakeTransport {
 	return &fakeTransport{

@@ -794,7 +794,7 @@ func (s *Scheduler) InstallSnapshot(data []byte) error {
 	s.workers = newWorkers
 	return nil
 }
-}
+
 
 // ApplyEntry applies a committed Raft log entry to the scheduler's state.
 func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
