@@ -67,7 +67,8 @@ func TestElectionPersistsTermAndSelfVote(t *testing.T) {
 type failingPersister struct{}
 
 func (failingPersister) Load() (int, string, []LogEntry, error) { return 0, "", nil, nil }
-func (failingPersister) Save(int, string, []LogEntry) error     { return errors.New("disk full") }
+func (failingPersister) SaveSnapshot(index int, term int, data []byte) error { return errors.New("snapshot not supported") }
+func (failingPersister) Save(int, string, []LogEntry) error { return errors.New("disk full") }
 
 func TestVoteRefusedWhenItCannotBePersisted(t *testing.T) {
 	n := NewNode("n1", []string{"n2", "n3"}, newFakeTransport())
