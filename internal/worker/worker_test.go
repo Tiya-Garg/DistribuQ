@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TiyaGarg06/DistribuQ/internal/scheduler"
+	"github.com/Tiya-Garg/DistribuQ/internal/scheduler"
 )
 
 // startScheduler runs a real scheduler behind a real net/rpc server on
