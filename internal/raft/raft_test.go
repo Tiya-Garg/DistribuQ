@@ -16,8 +16,6 @@ type fakeTransport struct {
 	blocked map[string]map[string]bool
 }
 
-
-
 func newFakeTransport() *fakeTransport {
 	return &fakeTransport{
 		nodes:   make(map[string]*Node),
@@ -95,18 +93,6 @@ func (f *fakeTransport) Heartbeat(peerID string, args *HeartbeatArgs) (*Heartbea
 		return nil, errNoPeer
 	}
 	return peer.HandleHeartbeat(args), nil
-}
-func (f *fakeTransport) InstallSnapshot(peerID string, args *InstallSnapshotArgs) (*InstallSnapshotReply, error) {
-    if f.isBlocked(args.LeaderID, peerID) {
-        return nil, errNoPeer
-    }
-    f.mu.Lock()
-    peer, ok := f.nodes[peerID]
-    f.mu.Unlock()
-    if !ok {
-        return nil, errNoPeer
-    }
-    return peer.HandleInstallSnapshot(args), nil
 }
 
 var errNoPeer = &peerError{"no such peer"}
@@ -496,10 +482,6 @@ func TestRestartedNodeRecoversLogFromDisk(t *testing.T) {
 
 func TestLeaderProposesNoopOnElection(t *testing.T) {
 	_, nodes := newCluster(t, []string{"n1", "n2", "n3"})
-	for _, n := range nodes {
-		go n.Run()
-		defer n.Stop()
-	}
 
 	leaderElectedCh := make(chan string, 1)
 	for _, n := range nodes {
@@ -510,6 +492,11 @@ func TestLeaderProposesNoopOnElection(t *testing.T) {
 			default:
 			}
 		})
+	}
+
+	for _, n := range nodes {
+		go n.Run()
+		defer n.Stop()
 	}
 
 	select {
@@ -670,9 +657,7 @@ func TestFastLogRollbackOnConflict(t *testing.T) {
 	n2.mu.Unlock()
 
 	// With fast rollback, the leader should jump back across the entire conflicting term
-	// within 2 heartbeat rounds, instead of decrementing nextIndex by 1 for 50 rounds!
-	n1.sendHeartbeats()
-	time.Sleep(30 * time.Millisecond)
+	// on the first rejection round, instead of decrementing nextIndex by 1 for 50 rounds!
 	n1.sendHeartbeats()
 	time.Sleep(30 * time.Millisecond)
 
@@ -683,6 +668,19 @@ func TestFastLogRollbackOnConflict(t *testing.T) {
 	// n2 had no entries in term 5 or term 4, so fast rollback should have set nextIndex to 1 (or match the leader's start)
 	// without 50 roundtrips.
 	if nextIdx > 2 {
-		t.Fatalf("expected nextIndex to fast rollback close to 1 in 2 rounds, but nextIndex is %d", nextIdx)
+		t.Fatalf("expected nextIndex to fast rollback close to 1 in 1 round, but nextIndex is %d", nextIdx)
+	}
+
+	// On the next heartbeat round, leader replicates entries starting from index 1,
+	// catching up follower so matchIndex becomes 50.
+	n1.sendHeartbeats()
+	time.Sleep(30 * time.Millisecond)
+
+	n1.mu.Lock()
+	matchIdx := n1.matchIndex["n2"]
+	n1.mu.Unlock()
+
+	if matchIdx != 50 {
+		t.Fatalf("expected follower to match leader up to index 50 after repair, got %d", matchIdx)
 	}
 }
