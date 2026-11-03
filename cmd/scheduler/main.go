@@ -74,15 +74,30 @@ func main() {
 			sched.KickDispatch()
 		}
 	})
+	node.OnApplySnapshot(func(data []byte) {
+		if err := sched.RestoreFromSnapshot(data); err != nil {
+			log.Printf("[%s] failed to restore state from snapshot: %v", *id, err)
+		} else {
+			log.Printf("[%s] applied snapshot to scheduler", *id)
+			if node.State() == raft.Leader {
+				sched.KickDispatch()
+			}
+		}
+	})
 	if *dataDir != "" {
 		statePath := filepath.Join(*dataDir, *id+".raft.json")
 		if err := node.SetPersister(raft.NewFilePersister(statePath)); err != nil {
 			log.Fatalf("failed to restore raft state from %s: %v", statePath, err)
 		}
+		if snapData := node.SnapshotData(); len(snapData) > 0 {
+			if err := sched.RestoreFromSnapshot(snapData); err != nil {
+				log.Printf("[%s] warning: failed to restore initial snapshot: %v", *id, err)
+			}
+		}
 		for _, entry := range node.Log() {
 			sched.ApplyEntry(entry)
 		}
-		log.Printf("[%s] raft state at %s (restored term %d, log len %d)", *id, statePath, node.Term(), node.LastLogIndex())
+		log.Printf("[%s] raft state at %s (restored term %d, last index %d, snapshot index %d)", *id, statePath, node.Term(), node.LastLogIndex(), node.LastIncludedIndex())
 	}
 	node.OnBecomeLeader(func() {
 		log.Printf("[%s] elected LEADER (term %d) -- now accepting task submissions", *id, node.Term())
