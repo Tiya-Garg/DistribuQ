@@ -4,7 +4,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/TiyaGarg06/DistribuQ/internal/scheduler"
+	"github.com/Tiya-Garg/DistribuQ/internal/scheduler"
 )
 
 // deadAddr returns a local address nothing is listening on.
