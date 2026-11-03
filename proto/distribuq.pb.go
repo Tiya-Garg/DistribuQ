@@ -30,6 +30,7 @@ type LogEntry struct {
 	Payload       string                 `protobuf:"bytes,5,opt,name=payload,proto3" json:"payload,omitempty"`
 	WorkerId      string                 `protobuf:"bytes,6,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
 	Cause         string                 `protobuf:"bytes,7,opt,name=cause,proto3" json:"cause,omitempty"`
+	Priority      int32                  `protobuf:"varint,8,opt,name=priority,proto3" json:"priority,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -111,6 +112,13 @@ func (x *LogEntry) GetCause() string {
 		return x.Cause
 	}
 	return ""
+}
+
+func (x *LogEntry) GetPriority() int32 {
+	if x != nil {
+		return x.Priority
+	}
+	return 0
 }
 
 type RequestVoteRequest struct {
@@ -701,6 +709,7 @@ type SubmitTaskRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
 	Payload       string                 `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
+	Priority      int32                  `protobuf:"varint,3,opt,name=priority,proto3" json:"priority,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -747,6 +756,13 @@ func (x *SubmitTaskRequest) GetPayload() string {
 		return x.Payload
 	}
 	return ""
+}
+
+func (x *SubmitTaskRequest) GetPriority() int32 {
+	if x != nil {
+		return x.Priority
+	}
+	return 0
 }
 
 type SubmitTaskResponse struct {
@@ -1181,7 +1197,7 @@ var File_proto_distribuq_proto protoreflect.FileDescriptor
 
 const file_proto_distribuq_proto_rawDesc = "" +
 	"\n" +
-	"\x15proto/distribuq.proto\x12\tdistribuq\"\xae\x01\n" +
+	"\x15proto/distribuq.proto\x12\tdistribuq\"\xca\x01\n" +
 	"\bLogEntry\x12\x14\n" +
 	"\x05index\x18\x01 \x01(\x03R\x05index\x12\x12\n" +
 	"\x04term\x18\x02 \x01(\x03R\x04term\x12\x12\n" +
@@ -1189,7 +1205,8 @@ const file_proto_distribuq_proto_rawDesc = "" +
 	"\atask_id\x18\x04 \x01(\tR\x06taskId\x12\x18\n" +
 	"\apayload\x18\x05 \x01(\tR\apayload\x12\x1b\n" +
 	"\tworker_id\x18\x06 \x01(\tR\bworkerId\x12\x14\n" +
-	"\x05cause\x18\a \x01(\tR\x05cause\"\x95\x01\n" +
+	"\x05cause\x18\a \x01(\tR\x05cause\x12\x1a\n" +
+	"\bpriority\x18\b \x01(\x05R\bpriority\"\x95\x01\n" +
 	"\x12RequestVoteRequest\x12\x12\n" +
 	"\x04term\x18\x01 \x01(\x03R\x04term\x12!\n" +
 	"\fcandidate_id\x18\x02 \x01(\tR\vcandidateId\x12$\n" +
@@ -1228,10 +1245,11 @@ const file_proto_distribuq_proto_rawDesc = "" +
 	"\x10HeartbeatRequest\x12\x1b\n" +
 	"\tworker_id\x18\x01 \x01(\tR\bworkerId\"#\n" +
 	"\x11HeartbeatResponse\x12\x0e\n" +
-	"\x02ok\x18\x01 \x01(\bR\x02ok\"F\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\"b\n" +
 	"\x11SubmitTaskRequest\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x18\n" +
-	"\apayload\x18\x02 \x01(\tR\apayload\"$\n" +
+	"\apayload\x18\x02 \x01(\tR\apayload\x12\x1a\n" +
+	"\bpriority\x18\x03 \x01(\x05R\bpriority\"$\n" +
 	"\x12SubmitTaskResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\"K\n" +
 	"\x13CompleteTaskRequest\x12\x17\n" +
