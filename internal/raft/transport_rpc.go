@@ -70,14 +70,13 @@ func (t *RPCTransport) RequestVote(peerID string, args *RequestVoteArgs) (*Reque
 	return reply, nil
 }
 
-func (t *RPCTransport) InstallSnapshot(peerID string, args *InstallSnapshotArgs) (*InstallSnapshotReply, error) {
+func (t *RPCTransport) Heartbeat(peerID string, args *HeartbeatArgs) (*HeartbeatReply, error) {
 	c, err := t.client(peerID)
 	if err != nil {
 		return nil, err
 	}
-	reply := &InstallSnapshotReply{}
-	if err := c.Call("RaftService.InstallSnapshot", args, reply); err != nil {
-		// Invalidate connection on error to allow reconnection.
+	reply := &HeartbeatReply{}
+	if err := c.Call("RaftService.Heartbeat", args, reply); err != nil {
 		t.invalidate(peerID)
 		return nil, err
 	}
@@ -98,10 +97,5 @@ func (s *RaftService) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply
 
 func (s *RaftService) Heartbeat(args *HeartbeatArgs, reply *HeartbeatReply) error {
 	*reply = *s.Node.HandleHeartbeat(args)
-	return nil
-}
-
-func (s *RaftService) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapshotReply) error {
-	*reply = *s.Node.HandleInstallSnapshot(args)
 	return nil
 }
