@@ -29,6 +29,7 @@ type LogEntry struct {
 	Payload  string      `json:"payload,omitempty"`
 	WorkerID string      `json:"worker_id,omitempty"`
 	Cause    string      `json:"cause,omitempty"`
+	Priority int         `json:"priority,omitempty"`
 }
 
 // Persister durably stores the Raft state that must survive a restart:
