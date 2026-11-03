@@ -4,16 +4,13 @@
 package scheduler
 
 import (
-	"encoding/json"
 	"errors"
-	"log"
 	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
-	"os"
 
-	"github.com/TiyaGarg06/DistribuQ/internal/raft"
+	"github.com/Tiya-Garg/DistribuQ/internal/raft"
 )
 
 // RaftProposer defines the interface needed to propose log entries to a Raft leader.
@@ -748,54 +745,7 @@ func (s *Scheduler) Snapshot() (tasks map[string]TaskStatus, workerCount int) {
 		tasks[id] = t.Status
 	}
 	return tasks, len(s.workers)
-
-// SchedulerSnapshot represents a point‑in‑time snapshot of the scheduler state.
-type SchedulerSnapshot struct {
-	Tasks   map[string]TaskStatus   `json:"tasks"`
-	Workers map[string]WorkerInfo   `json:"workers"`
 }
-
-// BuildSnapshot creates a JSON representation of the current scheduler state.
-func (s *Scheduler) BuildSnapshot() ([]byte, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	snap := SchedulerSnapshot{
-		Tasks:   make(map[string]TaskStatus, len(s.tasks)),
-		Workers: make(map[string]WorkerInfo, len(s.workers)),
-	}
-	for id, t := range s.tasks {
-		snap.Tasks[id] = t.Status
-	}
-	for id, w := range s.workers {
-		snap.Workers[id] = *w
-	}
-	return json.MarshalIndent(snap, "", "  ")
-}
-
-// InstallSnapshot replaces the scheduler's current state with the provided snapshot data.
-func (s *Scheduler) InstallSnapshot(data []byte) error {
-	var snap SchedulerSnapshot
-	if err := json.Unmarshal(data, &snap); err != nil {
-		return err
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	// Recreate task map preserving only status (other fields are not needed for snapshot restore).
-	newTasks := make(map[string]*Task, len(snap.Tasks))
-	for id, status := range snap.Tasks {
-		newTasks[id] = &Task{ID: id, Status: status}
-	}
-	newWorkers := make(map[string]*WorkerInfo, len(snap.Workers))
-	for id, w := range snap.Workers {
-		// Copy to a new struct to avoid sharing pointers.
-		copyW := w
-		newWorkers[id] = &copyW
-	}
-	s.tasks = newTasks
-	s.workers = newWorkers
-	return nil
-}
-
 
 // ApplyEntry applies a committed Raft log entry to the scheduler's state.
 func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
@@ -815,19 +765,9 @@ func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
 			}
 		}
 
-	case raft.CmdSnapshot:
-		// Take a snapshot of the scheduler state and persist it.
-		data, err := s.BuildSnapshot()
-		if err != nil {
-			// Log the error but continue; snapshot failure should not block progress.
-			log.Printf("scheduler snapshot error: %v", err)
-			break
-		}
-		// Write snapshot to a file (overwrites previous snapshot).
-		if err := os.WriteFile("snapshot.json", data, 0o644); err != nil {
-			log.Printf("failed to write snapshot file: %v", err)
-		}
-
+	case raft.CmdNoop:
+		// No-op command; deliberately ignored.
+		// Ensures leader can commit an entry without side effects.
 
 	case raft.CmdAssign:
 		task, ok := s.tasks[entry.TaskID]
