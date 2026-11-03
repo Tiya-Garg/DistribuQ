@@ -5,22 +5,19 @@
 package worker
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
-	"net/rpc"
 	"sync"
 	"time"
+
+	pb "github.com/Tiya-Garg/DistribuQ/proto"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 )
-
-type ExecuteArgs struct {
-	TaskID  string
-	Payload string
-}
-
-type ExecuteReply struct {
-	Accepted bool
-}
 
 // TaskExecutor runs a task's payload. Swappable so tests can inject a
 // no-op executor instead of doing real work; production code uses
@@ -69,17 +66,19 @@ func (w *Worker) addrs() []string {
 // (followers, or a leader that doesn't know it) answer with an error,
 // so the report keeps going until it reaches the one that does. If none
 // accepts, the errors from all of them are returned together.
-func (w *Worker) callAny(method string, args any) error {
+func (w *Worker) callAny(callFn func(client pb.SchedulerServiceClient, ctx context.Context) error) error {
 	var errs []error
 	for _, addr := range w.addrs() {
-		client, err := rpc.Dial("tcp", addr)
+		conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
-		var reply struct{ OK bool }
-		err = client.Call(method, args, &reply)
-		client.Close()
+		client := pb.NewSchedulerServiceClient(conn)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		err = callFn(client, ctx)
+		cancel()
+		_ = conn.Close()
 		if err == nil {
 			return nil
 		}
@@ -102,43 +101,40 @@ func (w *Worker) runWithSlot(taskID, payload string) error {
 	return w.Execute(taskID, payload)
 }
 
-// WorkerService is the RPC-exported wrapper the scheduler calls into.
-type WorkerService struct {
+// GRPCWorkerServer implements pb.WorkerServiceServer to receive task executions.
+type GRPCWorkerServer struct {
+	pb.UnimplementedWorkerServiceServer
 	w *Worker
 }
 
-// NewWorkerService wraps a Worker so it can be registered on an
-// rpc.Server and receive ExecuteTask calls from the scheduler.
-func NewWorkerService(w *Worker) *WorkerService {
-	return &WorkerService{w: w}
+// NewGRPCWorkerServer wraps a Worker to serve WorkerService over gRPC.
+func NewGRPCWorkerServer(w *Worker) *GRPCWorkerServer {
+	return &GRPCWorkerServer{w: w}
 }
 
-func (ws *WorkerService) ExecuteTask(args *ExecuteArgs, reply *ExecuteReply) error {
-	reply.Accepted = true
+func (ws *GRPCWorkerServer) ExecuteTask(ctx context.Context, req *pb.ExecuteTaskRequest) (*pb.ExecuteTaskResponse, error) {
 	go func() {
-		if err := ws.w.runWithSlot(args.TaskID, args.Payload); err != nil {
-			log.Printf("worker %s: task %s failed: %v", ws.w.ID, args.TaskID, err)
-			if rerr := ws.w.reportFailure(args.TaskID, err); rerr != nil {
-				log.Printf("worker %s: failed to report failure for %s: %v", ws.w.ID, args.TaskID, rerr)
+		if err := ws.w.runWithSlot(req.TaskId, req.Payload); err != nil {
+			log.Printf("worker %s: task %s failed: %v", ws.w.ID, req.TaskId, err)
+			if rerr := ws.w.reportFailure(req.TaskId, err); rerr != nil {
+				log.Printf("worker %s: failed to report failure for %s: %v", ws.w.ID, req.TaskId, rerr)
 			}
 			return
 		}
-		if err := ws.w.reportCompletion(args.TaskID); err != nil {
-			log.Printf("worker %s: failed to report completion for %s: %v", ws.w.ID, args.TaskID, err)
+		if err := ws.w.reportCompletion(req.TaskId); err != nil {
+			log.Printf("worker %s: failed to report completion for %s: %v", ws.w.ID, req.TaskId, err)
 		}
 	}()
-	return nil
+	return &pb.ExecuteTaskResponse{Accepted: true}, nil
 }
 
 // reportCompletion calls back into the scheduler's RPC service to mark
 // a task done.
 func (w *Worker) reportCompletion(taskID string) error {
-	return w.callAny("SchedulerService.CompleteTask", &CompleteArgs{TaskID: taskID, WorkerID: w.ID})
-}
-
-type CompleteArgs struct {
-	TaskID   string
-	WorkerID string
+	return w.callAny(func(client pb.SchedulerServiceClient, ctx context.Context) error {
+		_, err := client.CompleteTask(ctx, &pb.CompleteTaskRequest{TaskId: taskID, WorkerId: w.ID})
+		return err
+	})
 }
 
 // reportFailure calls back into the scheduler's RPC service to report
@@ -146,19 +142,10 @@ type CompleteArgs struct {
 // (or mark it permanently failed) instead of leaving it stuck as
 // assigned to this worker forever.
 func (w *Worker) reportFailure(taskID string, cause error) error {
-	return w.callAny("SchedulerService.FailTask", &FailArgs{TaskID: taskID, WorkerID: w.ID, Cause: cause.Error()})
-}
-
-type FailArgs struct {
-	TaskID   string
-	WorkerID string
-	Cause    string
-}
-
-// RegisterArgs is what the scheduler's RegisterWorker RPC expects.
-type RegisterArgs struct {
-	WorkerID string
-	Addr     string
+	return w.callAny(func(client pb.SchedulerServiceClient, ctx context.Context) error {
+		_, err := client.FailTask(ctx, &pb.FailTaskRequest{TaskId: taskID, WorkerId: w.ID, Cause: cause.Error()})
+		return err
+	})
 }
 
 // Register announces this worker (and the address it can be reached
@@ -184,14 +171,18 @@ func (w *Worker) Register() error {
 }
 
 func (w *Worker) registerWith(addr string) error {
-	client, err := rpc.Dial("tcp", addr)
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer conn.Close()
 
-	var reply struct{ OK bool }
-	return client.Call("SchedulerService.RegisterWorker", &RegisterArgs{WorkerID: w.ID, Addr: w.Addr}, &reply)
+	client := pb.NewSchedulerServiceClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	_, err = client.RegisterWorker(ctx, &pb.RegisterWorkerRequest{WorkerId: w.ID, Addr: w.Addr})
+	return err
 }
 
 // StartHeartbeatLoop periodically pings the scheduler so it knows this
@@ -212,13 +203,9 @@ func (w *Worker) StartHeartbeatLoop(interval time.Duration, stopCh <-chan struct
 }
 
 // sendHeartbeat pings every scheduler once. If a scheduler answers
-// with an error, it is telling us it doesn't know this worker (the
-// only error Heartbeat can return): we were reaped after a missed
-// heartbeat, or that scheduler restarted or just took over as leader.
-// In that case the worker registers with that scheduler again instead
-// of heartbeating forever as a worker nobody will send work to.
-// Network errors (a scheduler is unreachable) are just logged; the
-// next tick retries, and the other schedulers are unaffected.
+// with an error, it is telling us it doesn't know this worker:
+// we were reaped after a missed heartbeat, or that scheduler restarted
+// or just took over as leader. In that case the worker registers again.
 func (w *Worker) sendHeartbeat() {
 	for _, addr := range w.addrs() {
 		w.heartbeatOne(addr)
@@ -226,21 +213,23 @@ func (w *Worker) sendHeartbeat() {
 }
 
 func (w *Worker) heartbeatOne(addr string) {
-	client, err := rpc.Dial("tcp", addr)
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Printf("worker %s: heartbeat dial to %s failed: %v", w.ID, addr, err)
 		return
 	}
-	defer client.Close()
+	defer conn.Close()
 
-	var reply struct{ OK bool }
-	err = client.Call("SchedulerService.Heartbeat", &HeartbeatArgs{WorkerID: w.ID}, &reply)
+	client := pb.NewSchedulerServiceClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	_, err = client.Heartbeat(ctx, &pb.HeartbeatRequest{WorkerId: w.ID})
+	cancel()
 	if err == nil {
 		return
 	}
 
-	var rejected rpc.ServerError
-	if !errors.As(err, &rejected) {
+	st, ok := status.FromError(err)
+	if !ok || st.Code() != codes.NotFound {
 		log.Printf("worker %s: heartbeat to %s failed: %v", w.ID, addr, err)
 		return
 	}
@@ -253,8 +242,4 @@ func (w *Worker) heartbeatOne(addr string) {
 	if rerr := w.registerWith(addr); rerr != nil {
 		log.Printf("worker %s: re-registration with %s failed: %v", w.ID, addr, rerr)
 	}
-}
-
-type HeartbeatArgs struct {
-	WorkerID string
 }
