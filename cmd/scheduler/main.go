@@ -5,16 +5,20 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"fmt"
 	"log"
 	"net"
-	"net/rpc"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/Tiya-Garg/DistribuQ/internal/raft"
 	"github.com/Tiya-Garg/DistribuQ/internal/scheduler"
+	pb "github.com/Tiya-Garg/DistribuQ/proto"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -35,24 +39,33 @@ func main() {
 	}
 
 	dispatch := func(workerID, workerAddr string, task *scheduler.Task) error {
-		client, err := rpc.Dial("tcp", workerAddr)
+		conn, err := grpc.NewClient(workerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			return err
 		}
-		defer client.Close()
+		defer conn.Close()
 
-		args := struct {
-			TaskID  string
-			Payload string
-		}{TaskID: task.ID, Payload: task.Payload}
-		var reply struct{ Accepted bool }
-		return client.Call("WorkerService.ExecuteTask", &args, &reply)
+		client := pb.NewWorkerServiceClient(conn)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		resp, err := client.ExecuteTask(ctx, &pb.ExecuteTaskRequest{
+			TaskId:  task.ID,
+			Payload: task.Payload,
+		})
+		if err != nil {
+			return err
+		}
+		if !resp.Accepted {
+			return fmt.Errorf("worker rejected task")
+		}
+		return nil
 	}
 
 	sched := scheduler.NewScheduler(dispatch)
 	go sched.MonitorWorkers(500 * time.Millisecond)
 
-	transport := raft.NewRPCTransport(peerAddrs)
+	transport := raft.NewGRPCTransport(peerAddrs)
 	node := raft.NewNode(*id, peerIDs, transport)
 	sched.SetRaftProposer(node)
 	node.OnApply(func(entry raft.LogEntry) {
@@ -79,16 +92,12 @@ func main() {
 		log.Printf("[%s] stepped down to FOLLOWER (leader is %q)", *id, node.LeaderID())
 	})
 
-	server := rpc.NewServer()
-	if err := server.RegisterName("RaftService", &raft.RaftService{Node: node}); err != nil {
-		log.Fatalf("failed to register RaftService: %v", err)
-	}
-	if err := server.RegisterName("SchedulerService", &scheduler.SchedulerService{
+	server := grpc.NewServer()
+	pb.RegisterRaftServiceServer(server, &raft.GRPCRaftServer{Node: node})
+	pb.RegisterSchedulerServiceServer(server, &scheduler.GRPCSchedulerServer{
 		S:        sched,
 		IsLeader: func() bool { return node.State() == raft.Leader },
-	}); err != nil {
-		log.Fatalf("failed to register SchedulerService: %v", err)
-	}
+	})
 
 	listener, err := net.Listen("tcp", *addr)
 	if err != nil {
@@ -97,7 +106,9 @@ func main() {
 	log.Printf("[%s] scheduler replica listening on %s", *id, *addr)
 
 	go node.Run()
-	server.Accept(listener)
+	if err := server.Serve(listener); err != nil {
+		log.Fatalf("scheduler server exited: %v", err)
+	}
 }
 
 func parsePeers(s string) map[string]string {
