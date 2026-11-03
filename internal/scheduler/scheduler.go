@@ -4,6 +4,7 @@
 package scheduler
 
 import (
+	"encoding/json"
 	"errors"
 	"sort"
 	"sync"
@@ -745,6 +746,78 @@ func (s *Scheduler) Snapshot() (tasks map[string]TaskStatus, workerCount int) {
 		tasks[id] = t.Status
 	}
 	return tasks, len(s.workers)
+}
+
+// TaskSnapshot holds the persistent state of one task in a snapshot.
+type TaskSnapshot struct {
+	ID         string     `json:"id"`
+	Payload    string     `json:"payload"`
+	Status     TaskStatus `json:"status"`
+	WorkerID   string     `json:"worker_id,omitempty"`
+	Attempts   int        `json:"attempts"`
+	MaxRetries int        `json:"max_retries"`
+	Seq        uint64     `json:"seq"`
+}
+
+type schedulerSnapshotData struct {
+	Tasks   map[string]TaskSnapshot `json:"tasks"`
+	NextSeq uint64                  `json:"next_seq"`
+}
+
+// EncodeState returns a serialized snapshot of all tasks and scheduler metadata.
+func (s *Scheduler) EncodeState() ([]byte, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	tasks := make(map[string]TaskSnapshot, len(s.tasks))
+	for id, t := range s.tasks {
+		tasks[id] = TaskSnapshot{
+			ID:         t.ID,
+			Payload:    t.Payload,
+			Status:     t.Status,
+			WorkerID:   t.WorkerID,
+			Attempts:   t.Attempts,
+			MaxRetries: t.MaxRetries,
+			Seq:        t.seq,
+		}
+	}
+	return json.Marshal(schedulerSnapshotData{
+		Tasks:   tasks,
+		NextSeq: s.nextSeq,
+	})
+}
+
+// RestoreFromSnapshot restores the scheduler's tasks from a snapshot.
+func (s *Scheduler) RestoreFromSnapshot(data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+	var snap schedulerSnapshotData
+	if err := json.Unmarshal(data, &snap); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.tasks = make(map[string]*Task, len(snap.Tasks))
+	for id, ts := range snap.Tasks {
+		s.tasks[id] = &Task{
+			ID:         ts.ID,
+			Payload:    ts.Payload,
+			Status:     ts.Status,
+			WorkerID:   ts.WorkerID,
+			Attempts:   ts.Attempts,
+			MaxRetries: ts.MaxRetries,
+			seq:        ts.Seq,
+			tried:      make(map[string]bool),
+		}
+	}
+	if snap.NextSeq > s.nextSeq {
+		s.nextSeq = snap.NextSeq
+	}
+
+	return nil
 }
 
 // ApplyEntry applies a committed Raft log entry to the scheduler's state.
