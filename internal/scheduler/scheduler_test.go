@@ -1200,6 +1200,51 @@ func TestSweepAsyncRunsAgainForWorkAddedDuringSweep(t *testing.T) {
 	})
 }
 
+func TestPriorityScheduling(t *testing.T) {
+	fd := &fakeDispatch{}
+	s := NewScheduler(fd.fn)
+
+	// Submit tasks with different priorities while no workers are registered:
+	// t1: Low (0), submitted first
+	// t2: Normal (1)
+	// t3: Critical (3)
+	// t4: High (2)
+	// t5: Critical (3), submitted after t3
+	if _, err := s.SubmitTaskWithPriority("t1", "p1", 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SubmitTaskWithPriority("t2", "p2", 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SubmitTaskWithPriority("t3", "p3", 3); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SubmitTaskWithPriority("t4", "p4", 2); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SubmitTaskWithPriority("t5", "p5", 3); err != nil {
+		t.Fatal(err)
+	}
+
+	s.RegisterWorker("w1", "localhost:9001")
+	s.dispatchQueued()
+
+	// Expected order:
+	// Priority 3 (Critical): t3, t5 (FIFO between t3 and t5)
+	// Priority 2 (High): t4
+	// Priority 1 (Normal): t2
+	// Priority 0 (Low): t1
+	want := []string{"w1:t3", "w1:t5", "w1:t4", "w1:t2", "w1:t1"}
+	if len(fd.log) != len(want) {
+		t.Fatalf("expected %d dispatches, got %d: %v", len(want), len(fd.log), fd.log)
+	}
+	for i := range want {
+		if fd.log[i] != want[i] {
+			t.Fatalf("dispatch order mismatch at index %d: got %v, want %v", i, fd.log, want)
+		}
+	}
+}
+
 func taskID(i int) string {
 	return "t" + string(rune('0'+i))
 }
