@@ -18,8 +18,6 @@ const (
 	CmdComplete CommandType = "completed"
 	CmdFail     CommandType = "failed"
 	CmdNoop     CommandType = "noop"
-	// CmdSnapshot is a placeholder for future snapshotting logic.
-	CmdSnapshot CommandType = "snapshot"
 )
 
 // LogEntry is an entry in the replicated Raft log representing a task event.
@@ -41,9 +39,6 @@ type LogEntry struct {
 type Persister interface {
 	Load() (term int, votedFor string, log []LogEntry, err error)
 	Save(term int, votedFor string, log []LogEntry) error
-	// SaveSnapshot persists a compacted snapshot of the state machine.
-	// index and term refer to the last included log entry.
-	SaveSnapshot(index int, term int, data []byte) error
 }
 
 // FilePersister is a Persister backed by a single JSON file. Writes go
@@ -60,12 +55,9 @@ func NewFilePersister(path string) *FilePersister {
 }
 
 type persistedState struct {
-	Term          int        `json:"term"`
-	VotedFor      string     `json:"voted_for"`
-	Log           []LogEntry `json:"log,omitempty"`
-	SnapshotIndex int        `json:"snapshot_index,omitempty"`
-	SnapshotTerm  int        `json:"snapshot_term,omitempty"`
-	SnapshotData  []byte     `json:"snapshot_data,omitempty"`
+	Term     int        `json:"term"`
+	VotedFor string     `json:"voted_for"`
+	Log      []LogEntry `json:"log,omitempty"`
 }
 
 // Load returns the saved state. A missing file is a fresh node, not an
@@ -85,18 +77,9 @@ func (p *FilePersister) Load() (int, string, []LogEntry, error) {
 	return st.Term, st.VotedFor, st.Log, nil
 }
 
-// Save atomically and durably replaces the stored state (term, vote, log, and optional snapshot).
+// Save atomically and durably replaces the stored state.
 func (p *FilePersister) Save(term int, votedFor string, logEntries []LogEntry) error {
-	// Load existing snapshot info so we don't lose it on a normal Save.
-	existing, _ := p.LoadSnapshot()
-	data, err := json.Marshal(persistedState{
-		Term:          term,
-		VotedFor:      votedFor,
-		Log:           logEntries,
-		SnapshotIndex: existing.Index,
-		SnapshotTerm:  existing.Term,
-		SnapshotData:  existing.Data,
-	})
+	data, err := json.Marshal(persistedState{Term: term, VotedFor: votedFor, Log: logEntries})
 	if err != nil {
 		return err
 	}
@@ -132,86 +115,8 @@ func (p *FilePersister) Save(term int, votedFor string, logEntries []LogEntry) e
 	}
 
 	// fsync the directory so the rename itself survives a crash.
-	if runtime.GOOS != "windows" {
-		d, err := os.Open(dir)
-		if err != nil {
-			return err
-		}
-		defer d.Close()
-		return d.Sync()
-	}
-	return nil
-}
-
-// LoadSnapshot returns the snapshot metadata stored in the file, if any.
-func (p *FilePersister) LoadSnapshot() (snap struct{ Index int; Term int; Data []byte }, err error) {
-	data, err := os.ReadFile(p.path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return snap, nil // no snapshot yet
-		}
-		return snap, err
-	}
-	var st persistedState
-	if err := json.Unmarshal(data, &st); err != nil {
-		return snap, err
-	}
-	snap.Index = st.SnapshotIndex
-	snap.Term = st.SnapshotTerm
-	snap.Data = st.SnapshotData
-	return snap, nil
-}
-
-// SaveSnapshot persists a compacted snapshot.
-func (p *FilePersister) SaveSnapshot(index int, term int, data []byte) error {
-	// Load current state to preserve term/vote/log.
-	termCur, votedFor, logEntries, err := p.Load()
-	if err != nil {
-		return err
-	}
-	st := persistedState{
-		Term:          termCur,
-		VotedFor:      votedFor,
-		Log:           logEntries,
-		SnapshotIndex: index,
-		SnapshotTerm:  term,
-		SnapshotData:  data,
-	}
-	bytes, err := json.Marshal(st)
-	if err != nil {
-		return err
-	}
-
-	dir := filepath.Dir(p.path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(dir, filepath.Base(p.path)+".tmp-*")
-	if err != nil {
-		return err
-	}
-	tmpName := tmp.Name()
-	fail := func(err error) error {
-		tmp.Close()
-		os.Remove(tmpName)
-		return err
-	}
-
-	if _, err := tmp.Write(bytes); err != nil {
-		return fail(err)
-	}
-	if err := tmp.Sync(); err != nil {
-		return fail(err)
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmpName)
-		return err
-	}
-	if err := os.Rename(tmpName, p.path); err != nil {
-		os.Remove(tmpName)
-		return err
-	}
-
+	// On Windows, directory handles do not support FlushFileBuffers and NTFS
+	// journals directory metadata automatically.
 	if runtime.GOOS != "windows" {
 		d, err := os.Open(dir)
 		if err != nil {
