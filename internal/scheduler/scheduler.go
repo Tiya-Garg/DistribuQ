@@ -36,6 +36,7 @@ type Task struct {
 	WorkerID   string
 	Attempts   int
 	MaxRetries int
+	Priority   int
 
 	// seq is the task's submission order, used to dispatch tasks that
 	// were left queued in first-come, first-served order.
@@ -193,14 +194,15 @@ func (s *Scheduler) Heartbeat(workerID string) error {
 	return nil
 }
 
-// SubmitTask queues a task and attempts immediate dispatch to the
-// least-loaded healthy worker. It rejects an empty ID (ErrEmptyTaskID)
-// and an ID that has been used before (ErrDuplicateTask); in both
-// cases nothing is queued and existing tasks are left untouched.
-//
-// When a Raft proposer is attached, the task is committed across a
-// majority before SubmitTask returns successfully.
+// SubmitTask queues a task with default (0) priority.
 func (s *Scheduler) SubmitTask(id, payload string) (*Task, error) {
+	return s.SubmitTaskWithPriority(id, payload, 0)
+}
+
+// SubmitTaskWithPriority queues a task with an explicit priority and attempts
+// immediate dispatch to the least-loaded healthy worker. Higher priority values
+// are dispatched before lower priority tasks.
+func (s *Scheduler) SubmitTaskWithPriority(id, payload string, priority int) (*Task, error) {
 	if id == "" {
 		return nil, ErrEmptyTaskID
 	}
@@ -213,7 +215,14 @@ func (s *Scheduler) SubmitTask(id, payload string) (*Task, error) {
 	proposer := s.proposer
 	if proposer == nil {
 		s.nextSeq++
-		task := &Task{ID: id, Payload: payload, Status: TaskQueued, MaxRetries: 3, seq: s.nextSeq}
+		task := &Task{
+			ID:         id,
+			Payload:    payload,
+			Status:     TaskQueued,
+			MaxRetries: 3,
+			Priority:   priority,
+			seq:        s.nextSeq,
+		}
 		s.tasks[id] = task
 		s.mu.Unlock()
 
@@ -223,9 +232,10 @@ func (s *Scheduler) SubmitTask(id, payload string) (*Task, error) {
 	s.mu.Unlock()
 
 	_, _, commitCh, err := proposer.Propose(raft.LogEntry{
-		Type:    raft.CmdSubmit,
-		TaskID:  id,
-		Payload: payload,
+		Type:     raft.CmdSubmit,
+		TaskID:   id,
+		Payload:  payload,
+		Priority: priority,
 	})
 	if err != nil {
 		return nil, err
@@ -654,7 +664,12 @@ func (s *Scheduler) dispatchQueued() {
 	}
 	s.mu.Unlock()
 
-	sort.Slice(queued, func(i, j int) bool { return queued[i].seq < queued[j].seq })
+	sort.Slice(queued, func(i, j int) bool {
+		if queued[i].Priority != queued[j].Priority {
+			return queued[i].Priority > queued[j].Priority
+		}
+		return queued[i].seq < queued[j].seq
+	})
 	for _, t := range queued {
 		s.dispatch(t)
 	}
@@ -757,6 +772,7 @@ type TaskSnapshot struct {
 	Attempts   int        `json:"attempts"`
 	MaxRetries int        `json:"max_retries"`
 	Seq        uint64     `json:"seq"`
+	Priority   int        `json:"priority,omitempty"`
 }
 
 type schedulerSnapshotData struct {
@@ -779,6 +795,7 @@ func (s *Scheduler) EncodeState() ([]byte, error) {
 			Attempts:   t.Attempts,
 			MaxRetries: t.MaxRetries,
 			Seq:        t.seq,
+			Priority:   t.Priority,
 		}
 	}
 	return json.Marshal(schedulerSnapshotData{
@@ -809,6 +826,7 @@ func (s *Scheduler) RestoreFromSnapshot(data []byte) error {
 			WorkerID:   ts.WorkerID,
 			Attempts:   ts.Attempts,
 			MaxRetries: ts.MaxRetries,
+			Priority:   ts.Priority,
 			seq:        ts.Seq,
 			tried:      make(map[string]bool),
 		}
@@ -833,6 +851,7 @@ func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
 				ID:         entry.TaskID,
 				Payload:    entry.Payload,
 				Status:     TaskQueued,
+				Priority:   entry.Priority,
 				MaxRetries: 3,
 				seq:        s.nextSeq,
 			}
