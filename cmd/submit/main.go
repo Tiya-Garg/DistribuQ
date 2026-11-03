@@ -21,16 +21,34 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+func parsePriority(s string) int32 {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "critical", "3":
+		return 3
+	case "high", "2":
+		return 2
+	case "normal", "medium", "1", "":
+		return 1
+	case "low", "0":
+		return 0
+	default:
+		log.Printf("unknown priority %q, defaulting to normal (1)", s)
+		return 1
+	}
+}
+
 func main() {
 	addrsFlag := flag.String("schedulers", "localhost:8000", "comma-separated scheduler replica addresses to try")
 	id := flag.String("id", "", "task id (required)")
 	payload := flag.String("payload", "hello", "task payload")
+	priorityFlag := flag.String("priority", "normal", "task priority: low, normal, high, critical (or 0-3)")
 	flag.Parse()
 
 	if *id == "" {
 		log.Fatal("submit: -id is required")
 	}
 
+	priority := parsePriority(*priorityFlag)
 	addrs := strings.Split(*addrsFlag, ",")
 
 	var lastErr error
@@ -50,8 +68,9 @@ func main() {
 		client := pb.NewSchedulerServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		resp, callErr := client.SubmitTask(ctx, &pb.SubmitTaskRequest{
-			TaskId:  *id,
-			Payload: *payload,
+			TaskId:   *id,
+			Payload:  *payload,
+			Priority: priority,
 		})
 		cancel()
 		conn.Close()
