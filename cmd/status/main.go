@@ -9,7 +9,7 @@ import (
 	"net/rpc"
 	"sort"
 
-	"github.com/TiyaGarg06/DistribuQ/internal/scheduler"
+	"github.com/Tiya-Garg/DistribuQ/internal/scheduler"
 )
 
 func main() {
