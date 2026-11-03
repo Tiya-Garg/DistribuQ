@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TiyaGarg06/DistribuQ/internal/worker"
+	"github.com/Tiya-Garg/DistribuQ/internal/worker"
 )
 
 func main() {
