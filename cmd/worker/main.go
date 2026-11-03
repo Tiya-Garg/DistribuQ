@@ -8,11 +8,12 @@ import (
 	"flag"
 	"log"
 	"net"
-	"net/rpc"
 	"strings"
 	"time"
 
 	"github.com/Tiya-Garg/DistribuQ/internal/worker"
+	pb "github.com/Tiya-Garg/DistribuQ/proto"
+	"google.golang.org/grpc"
 )
 
 func main() {
@@ -44,10 +45,8 @@ func main() {
 		Execute:        worker.NewShellExecutor(*id, *timeout),
 	}
 
-	server := rpc.NewServer()
-	if err := server.RegisterName("WorkerService", worker.NewWorkerService(w)); err != nil {
-		log.Fatalf("failed to register WorkerService: %v", err)
-	}
+	server := grpc.NewServer()
+	pb.RegisterWorkerServiceServer(server, worker.NewGRPCWorkerServer(w))
 
 	listener, err := net.Listen("tcp", *addr)
 	if err != nil {
@@ -64,5 +63,7 @@ func main() {
 		log.Printf("worker %s: initial registration failed, will retry via heartbeats: %v", *id, err)
 	}
 
-	server.Accept(listener)
+	if err := server.Serve(listener); err != nil {
+		log.Fatalf("worker server exited: %v", err)
+	}
 }
