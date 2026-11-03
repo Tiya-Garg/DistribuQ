@@ -3,27 +3,34 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
-	"net/rpc"
 	"sort"
+	"time"
 
-	"github.com/Tiya-Garg/DistribuQ/internal/scheduler"
+	pb "github.com/Tiya-Garg/DistribuQ/proto"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
 	addr := flag.String("scheduler", "localhost:8000", "scheduler replica address to query")
 	flag.Parse()
 
-	client, err := rpc.Dial("tcp", *addr)
+	conn, err := grpc.NewClient(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("dial %s failed: %v", *addr, err)
 	}
-	defer client.Close()
+	defer conn.Close()
 
-	var reply scheduler.StatusReply
-	if err := client.Call("SchedulerService.GetStatus", &scheduler.StatusArgs{}, &reply); err != nil {
+	client := pb.NewSchedulerServiceClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	reply, err := client.GetStatus(ctx, &pb.GetStatusRequest{})
+	if err != nil {
 		log.Fatalf("status query failed: %v", err)
 	}
 
