@@ -36,12 +36,13 @@ func (s State) String() string {
 	}
 }
 
-// Transport abstracts sending RequestVote / Heartbeat RPCs to a peer.
-// A concrete implementation (net/rpc today, gRPC later) satisfies this
-// interface so the election algorithm itself stays transport-agnostic.
+// Transport abstracts sending RequestVote / Heartbeat / InstallSnapshot RPCs to a peer.
+// Concrete implementations (gRPC, net/rpc, in-memory) satisfy this interface
+// so the consensus algorithm itself stays transport-agnostic.
 type Transport interface {
 	RequestVote(peerID string, args *RequestVoteArgs) (*RequestVoteReply, error)
 	Heartbeat(peerID string, args *HeartbeatArgs) (*HeartbeatReply, error)
+	InstallSnapshot(peerID string, args *InstallSnapshotArgs) (*InstallSnapshotReply, error)
 }
 
 type RequestVoteArgs struct {
@@ -73,6 +74,19 @@ type HeartbeatReply struct {
 	ConflictIndex int
 }
 
+// InstallSnapshotArgs carries a state-machine snapshot from the leader to a lagging follower.
+type InstallSnapshotArgs struct {
+	Term              int
+	LeaderID          string
+	LastIncludedIndex int
+	LastIncludedTerm  int
+	Data              []byte
+}
+
+type InstallSnapshotReply struct {
+	Term int
+}
+
 // Node is a single participant in the leader election cluster.
 type Node struct {
 	mu sync.Mutex
@@ -85,9 +99,12 @@ type Node struct {
 	state       State
 	leaderID    string
 
-	log         []LogEntry
-	commitIndex int
-	lastApplied int
+	log               []LogEntry
+	lastIncludedIndex int
+	lastIncludedTerm  int
+	snapshotData      []byte
+	commitIndex       int
+	lastApplied       int
 
 	// Leader-specific tracking
 	nextIndex     map[string]int
@@ -96,22 +113,23 @@ type Node struct {
 
 	transport Transport
 
-	// persister, if set, durably stores currentTerm, votedFor, and log. Every
-	// change to either is saved before the node acts on it or replies
-	// to a peer (see persistLocked).
+	// persister, if set, durably stores currentTerm, votedFor, log, and snapshot.
+	// Every change is saved before the node acts on it or replies to a peer (see persistLocked).
 	persister Persister
 
 	electionResetAt time.Time
 	electionTimeout time.Duration
 
-	stopCh  chan struct{}
-	applyCh chan LogEntry
+	stopCh          chan struct{}
+	applyCh         chan LogEntry
+	applySnapshotCh chan []byte
 
 	// onBecomeLeader / onBecomeFollower let the scheduler react to
 	// role changes (e.g. start/stop accepting task submissions).
 	onBecomeLeader   func()
 	onBecomeFollower func()
 	onApply          func(LogEntry)
+	onApplySnapshot  func([]byte)
 }
 
 func NewNode(id string, peers []string, transport Transport) *Node {
@@ -123,6 +141,7 @@ func NewNode(id string, peers []string, transport Transport) *Node {
 		electionTimeout: randomElectionTimeout(),
 		stopCh:          make(chan struct{}),
 		applyCh:         make(chan LogEntry, 1024),
+		applySnapshotCh: make(chan []byte, 16),
 	}
 	go n.applyLoop()
 	return n
@@ -140,14 +159,21 @@ func (n *Node) applyLoop() {
 			if fn != nil {
 				fn(entry)
 			}
+		case snap := <-n.applySnapshotCh:
+			n.mu.Lock()
+			fn := n.onApplySnapshot
+			n.mu.Unlock()
+			if fn != nil {
+				fn(snap)
+			}
 		}
 	}
 }
 
 // SetPersister attaches durable storage and restores currentTerm,
-// votedFor, and log from it. It must be called before Run.
+// votedFor, log, and snapshot from it. It must be called before Run.
 func (n *Node) SetPersister(p Persister) error {
-	term, votedFor, logEntries, err := p.Load()
+	term, votedFor, logEntries, lastIdx, lastTerm, snap, err := p.Load()
 	if err != nil {
 		return err
 	}
@@ -157,16 +183,31 @@ func (n *Node) SetPersister(p Persister) error {
 	n.currentTerm = term
 	n.votedFor = votedFor
 	n.log = append([]LogEntry{}, logEntries...)
+	n.lastIncludedIndex = lastIdx
+	n.lastIncludedTerm = lastTerm
+	n.snapshotData = snap
+	if lastIdx > n.commitIndex {
+		n.commitIndex = lastIdx
+	}
+	if lastIdx > n.lastApplied {
+		n.lastApplied = lastIdx
+	}
 	return nil
 }
 
-// persistLocked saves currentTerm, votedFor, and log. Callers must hold n.mu.
+// persistLocked saves currentTerm, votedFor, log, and snapshot. Callers must hold n.mu.
 // A node with no persister always succeeds.
 func (n *Node) persistLocked() error {
 	if n.persister == nil {
 		return nil
 	}
-	return n.persister.Save(n.currentTerm, n.votedFor, n.log)
+	return n.persister.Save(n.currentTerm, n.votedFor, n.log, n.lastIncludedIndex, n.lastIncludedTerm, n.snapshotData)
+}
+
+func (n *Node) OnApplySnapshot(fn func([]byte)) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.onApplySnapshot = fn
 }
 
 func (n *Node) OnBecomeLeader(fn func()) {
@@ -314,11 +355,8 @@ func (n *Node) startElection() {
 	}
 	term := n.currentTerm
 	peers := append([]string{}, n.Peers...)
-	lastIndex := len(n.log)
-	lastTerm := 0
-	if lastIndex > 0 {
-		lastTerm = n.log[lastIndex-1].Term
-	}
+	lastIndex := n.lastLogIndexLocked()
+	lastTerm := n.lastLogTermLocked()
 	n.mu.Unlock()
 
 	n.resetElectionTimer()
@@ -364,7 +402,7 @@ func (n *Node) startElection() {
 		n.leaderID = n.ID
 		n.nextIndex = make(map[string]int)
 		n.matchIndex = make(map[string]int)
-		lastIdx := len(n.log)
+		lastIdx := n.lastLogIndexLocked()
 		for _, p := range n.Peers {
 			n.nextIndex[p] = lastIdx + 1
 			n.matchIndex[p] = 0
@@ -388,6 +426,45 @@ func (n *Node) startElection() {
 	}
 }
 
+func (n *Node) lastLogIndexLocked() int {
+	if len(n.log) == 0 {
+		return n.lastIncludedIndex
+	}
+	return n.log[len(n.log)-1].Index
+}
+
+func (n *Node) lastLogTermLocked() int {
+	if len(n.log) == 0 {
+		return n.lastIncludedTerm
+	}
+	return n.log[len(n.log)-1].Term
+}
+
+func (n *Node) termForIndexLocked(index int) int {
+	if index == 0 {
+		return 0
+	}
+	if index == n.lastIncludedIndex {
+		return n.lastIncludedTerm
+	}
+	offset := index - n.lastIncludedIndex - 1
+	if offset >= 0 && offset < len(n.log) {
+		return n.log[offset].Term
+	}
+	return 0
+}
+
+func (n *Node) entriesFromLocked(startIndex int) []LogEntry {
+	if startIndex <= n.lastIncludedIndex {
+		return nil
+	}
+	offset := startIndex - n.lastIncludedIndex - 1
+	if offset < 0 || offset > len(n.log) {
+		return nil
+	}
+	return append([]LogEntry{}, n.log[offset:]...)
+}
+
 func (n *Node) sendHeartbeats() {
 	n.mu.Lock()
 	if n.state != Leader {
@@ -404,14 +481,43 @@ func (n *Node) sendHeartbeats() {
 		if prevIndex < 0 {
 			prevIndex = 0
 		}
-		prevTerm := 0
-		if prevIndex > 0 && prevIndex <= len(n.log) {
-			prevTerm = n.log[prevIndex-1].Term
+
+		// If follower has fallen behind our compacted log, stream the snapshot
+		if prevIndex < n.lastIncludedIndex {
+			snapData := append([]byte{}, n.snapshotData...)
+			lastIdx := n.lastIncludedIndex
+			lastTrm := n.lastIncludedTerm
+			go func(peerID string, sData []byte, lIdx, lTrm int) {
+				reply, err := n.transport.InstallSnapshot(peerID, &InstallSnapshotArgs{
+					Term:              term,
+					LeaderID:          leaderID,
+					LastIncludedIndex: lIdx,
+					LastIncludedTerm:  lTrm,
+					Data:              sData,
+				})
+				if err != nil || reply == nil {
+					return
+				}
+				n.mu.Lock()
+				defer n.mu.Unlock()
+
+				if reply.Term > n.currentTerm {
+					n.stepDownLocked(reply.Term)
+					return
+				}
+				if n.state != Leader || n.currentTerm != term {
+					return
+				}
+				if lIdx > n.matchIndex[peerID] {
+					n.matchIndex[peerID] = lIdx
+					n.nextIndex[peerID] = lIdx + 1
+				}
+			}(peer, snapData, lastIdx, lastTrm)
+			continue
 		}
-		var entries []LogEntry
-		if prevIndex < len(n.log) {
-			entries = append([]LogEntry{}, n.log[prevIndex:]...)
-		}
+
+		prevTerm := n.termForIndexLocked(prevIndex)
+		entries := n.entriesFromLocked(prevIndex + 1)
 
 		go func(peerID string, prevIdx, prevTrm int, ents []LogEntry) {
 			reply, err := n.transport.Heartbeat(peerID, &HeartbeatArgs{
@@ -449,7 +555,7 @@ func (n *Node) sendHeartbeats() {
 					lastIdxForTerm := -1
 					for i := len(n.log) - 1; i >= 0; i-- {
 						if n.log[i].Term == reply.ConflictTerm {
-							lastIdxForTerm = i + 1
+							lastIdxForTerm = n.log[i].Index
 							break
 						}
 					}
@@ -473,8 +579,8 @@ func (n *Node) sendHeartbeats() {
 }
 
 func (n *Node) checkCommitLocked() {
-	for idx := len(n.log); idx > n.commitIndex; idx-- {
-		if n.log[idx-1].Term != n.currentTerm {
+	for idx := n.lastLogIndexLocked(); idx > n.commitIndex; idx-- {
+		if n.termForIndexLocked(idx) != n.currentTerm {
 			continue
 		}
 		matches := 1 // leader itself
@@ -512,9 +618,12 @@ func (n *Node) checkCommitLocked() {
 
 func (n *Node) applyCommittedLocked() []LogEntry {
 	var toApply []LogEntry
-	for n.lastApplied < n.commitIndex && n.lastApplied < len(n.log) {
+	for n.lastApplied < n.commitIndex && n.lastApplied < n.lastLogIndexLocked() {
 		n.lastApplied++
-		toApply = append(toApply, n.log[n.lastApplied-1])
+		offset := n.lastApplied - n.lastIncludedIndex - 1
+		if offset >= 0 && offset < len(n.log) {
+			toApply = append(toApply, n.log[offset])
+		}
 	}
 	return toApply
 }
@@ -535,11 +644,8 @@ func (n *Node) HandleRequestVote(args *RequestVoteArgs) *RequestVoteReply {
 	canVote := n.votedFor == "" || n.votedFor == args.CandidateID
 
 	// Election restriction: candidate's log must be at least as up to date as voter's log.
-	myLastTerm := 0
-	myLastIndex := len(n.log)
-	if myLastIndex > 0 {
-		myLastTerm = n.log[myLastIndex-1].Term
-	}
+	myLastTerm := n.lastLogTermLocked()
+	myLastIndex := n.lastLogIndexLocked()
 
 	upToDate := false
 	if args.LastLogTerm > myLastTerm {
@@ -567,7 +673,7 @@ func (n *Node) HandleHeartbeat(args *HeartbeatArgs) *HeartbeatReply {
 	defer n.mu.Unlock()
 
 	if args.Term < n.currentTerm {
-		return &HeartbeatReply{Term: n.currentTerm, Success: false, MatchIndex: len(n.log)}
+		return &HeartbeatReply{Term: n.currentTerm, Success: false, MatchIndex: n.lastLogIndexLocked()}
 	}
 
 	wasLeaderOrCandidate := n.state != Follower
@@ -579,24 +685,34 @@ func (n *Node) HandleHeartbeat(args *HeartbeatArgs) *HeartbeatReply {
 	n.leaderID = args.LeaderID
 	n.electionResetAt = time.Now()
 
+	// If PrevLogIndex is behind our compacted snapshot, reject and inform leader of our snapshot point
+	if args.PrevLogIndex < n.lastIncludedIndex {
+		return &HeartbeatReply{
+			Term:          n.currentTerm,
+			Success:       false,
+			MatchIndex:    n.lastIncludedIndex,
+			ConflictIndex: n.lastIncludedIndex + 1,
+		}
+	}
+
 	// PrevLog consistency check
 	if args.PrevLogIndex > 0 {
-		if len(n.log) < args.PrevLogIndex {
+		if n.lastLogIndexLocked() < args.PrevLogIndex {
 			_ = n.persistLocked()
 			return &HeartbeatReply{
 				Term:          n.currentTerm,
 				Success:       false,
-				MatchIndex:    len(n.log),
+				MatchIndex:    n.lastLogIndexLocked(),
 				ConflictTerm:  0,
-				ConflictIndex: len(n.log) + 1,
+				ConflictIndex: n.lastLogIndexLocked() + 1,
 			}
 		}
-		if n.log[args.PrevLogIndex-1].Term != args.PrevLogTerm {
-			conflictTerm := n.log[args.PrevLogIndex-1].Term
+		if n.termForIndexLocked(args.PrevLogIndex) != args.PrevLogTerm {
+			conflictTerm := n.termForIndexLocked(args.PrevLogIndex)
 			conflictIndex := args.PrevLogIndex
-			for i := 0; i < len(n.log); i++ {
-				if n.log[i].Term == conflictTerm {
-					conflictIndex = i + 1
+			for idx := n.lastIncludedIndex + 1; idx <= n.lastLogIndexLocked(); idx++ {
+				if n.termForIndexLocked(idx) == conflictTerm {
+					conflictIndex = idx
 					break
 				}
 			}
@@ -613,11 +729,14 @@ func (n *Node) HandleHeartbeat(args *HeartbeatArgs) *HeartbeatReply {
 
 	// Insert entries, truncating on conflict
 	logChanged := false
-	for i, entry := range args.Entries {
-		index := args.PrevLogIndex + 1 + i
-		if index <= len(n.log) {
-			if n.log[index-1].Term != entry.Term {
-				n.log = n.log[:index-1]
+	for _, entry := range args.Entries {
+		if entry.Index <= n.lastIncludedIndex {
+			continue
+		}
+		offset := entry.Index - n.lastIncludedIndex - 1
+		if offset < len(n.log) {
+			if n.log[offset].Term != entry.Term {
+				n.log = n.log[:offset]
 				n.log = append(n.log, entry)
 				logChanged = true
 			}
@@ -640,8 +759,8 @@ func (n *Node) HandleHeartbeat(args *HeartbeatArgs) *HeartbeatReply {
 		} else {
 			n.commitIndex = lastNewIndex
 		}
-		if n.commitIndex > len(n.log) {
-			n.commitIndex = len(n.log)
+		if n.commitIndex > n.lastLogIndexLocked() {
+			n.commitIndex = n.lastLogIndexLocked()
 		}
 		toApply := n.applyCommittedLocked()
 		for _, e := range toApply {
@@ -656,8 +775,86 @@ func (n *Node) HandleHeartbeat(args *HeartbeatArgs) *HeartbeatReply {
 	return &HeartbeatReply{
 		Term:       n.currentTerm,
 		Success:    true,
-		MatchIndex: len(n.log),
+		MatchIndex: n.lastLogIndexLocked(),
 	}
+}
+
+// Snapshot discards all log entries up to lastIncludedIndex and saves snapshotData.
+func (n *Node) Snapshot(lastIncludedIndex int, snapshotData []byte) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if lastIncludedIndex <= n.lastIncludedIndex || lastIncludedIndex > n.commitIndex {
+		return nil
+	}
+
+	term := n.termForIndexLocked(lastIncludedIndex)
+	offset := lastIncludedIndex - n.lastIncludedIndex - 1
+	if offset >= 0 && offset < len(n.log) {
+		n.log = append([]LogEntry{}, n.log[offset+1:]...)
+	} else {
+		n.log = nil
+	}
+
+	n.lastIncludedIndex = lastIncludedIndex
+	n.lastIncludedTerm = term
+	n.snapshotData = snapshotData
+
+	return n.persistLocked()
+}
+
+// HandleInstallSnapshot installs a snapshot sent by the leader.
+func (n *Node) HandleInstallSnapshot(args *InstallSnapshotArgs) *InstallSnapshotReply {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	if args.Term < n.currentTerm {
+		return &InstallSnapshotReply{Term: n.currentTerm}
+	}
+
+	wasLeaderOrCandidate := n.state != Follower
+	if args.Term > n.currentTerm {
+		n.stepDownLocked(args.Term)
+	} else if wasLeaderOrCandidate {
+		n.stepDownLocked(n.currentTerm)
+	}
+	n.leaderID = args.LeaderID
+	n.electionResetAt = time.Now()
+
+	if args.LastIncludedIndex <= n.lastIncludedIndex {
+		return &InstallSnapshotReply{Term: n.currentTerm}
+	}
+
+	// Truncate existing log
+	if args.LastIncludedIndex <= n.lastLogIndexLocked() && n.termForIndexLocked(args.LastIncludedIndex) == args.LastIncludedTerm {
+		offset := args.LastIncludedIndex - n.lastIncludedIndex - 1
+		n.log = append([]LogEntry{}, n.log[offset+1:]...)
+	} else {
+		n.log = nil
+	}
+
+	n.lastIncludedIndex = args.LastIncludedIndex
+	n.lastIncludedTerm = args.LastIncludedTerm
+	n.snapshotData = args.Data
+
+	if n.commitIndex < args.LastIncludedIndex {
+		n.commitIndex = args.LastIncludedIndex
+	}
+	if n.lastApplied < args.LastIncludedIndex {
+		n.lastApplied = args.LastIncludedIndex
+	}
+
+	_ = n.persistLocked()
+
+	// Notify application to restore state machine from snapshot
+	snapCopy := append([]byte{}, args.Data...)
+	select {
+	case n.applySnapshotCh <- snapCopy:
+	default:
+		go func(data []byte) { n.applySnapshotCh <- data }(snapCopy)
+	}
+
+	return &InstallSnapshotReply{Term: n.currentTerm}
 }
 
 // Propose appends a new LogEntry to the leader's log and begins replicating it.
@@ -670,7 +867,7 @@ func (n *Node) Propose(entry LogEntry) (int, int, <-chan bool, error) {
 		return 0, 0, nil, ErrNotLeader
 	}
 
-	entry.Index = len(n.log) + 1
+	entry.Index = n.lastLogIndexLocked() + 1
 	entry.Term = n.currentTerm
 	n.log = append(n.log, entry)
 	index := entry.Index
@@ -717,16 +914,31 @@ func (n *Node) CommitIndex() int {
 func (n *Node) LastLogIndex() int {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	return len(n.log)
+	return n.lastLogIndexLocked()
 }
 
 func (n *Node) LastLogTerm() int {
 	n.mu.Lock()
 	defer n.mu.Unlock()
-	if len(n.log) == 0 {
-		return 0
-	}
-	return n.log[len(n.log)-1].Term
+	return n.lastLogTermLocked()
+}
+
+func (n *Node) LastIncludedIndex() int {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.lastIncludedIndex
+}
+
+func (n *Node) LastIncludedTerm() int {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.lastIncludedTerm
+}
+
+func (n *Node) SnapshotData() []byte {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return append([]byte{}, n.snapshotData...)
 }
 
 func (n *Node) Log() []LogEntry {
