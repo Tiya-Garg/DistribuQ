@@ -1,0 +1,206 @@
+package raft
+
+import (
+	"context"
+	"fmt"
+	"sync"
+	"time"
+
+	pb "github.com/Tiya-Garg/DistribuQ/proto"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+)
+
+// GRPCTransport implements Transport using gRPC.
+type GRPCTransport struct {
+	mu        sync.Mutex
+	peerAddrs map[string]string
+	conns     map[string]*grpc.ClientConn
+	clients   map[string]pb.RaftServiceClient
+}
+
+// NewGRPCTransport returns a Transport backed by gRPC.
+func NewGRPCTransport(peerAddrs map[string]string) *GRPCTransport {
+	return &GRPCTransport{
+		peerAddrs: peerAddrs,
+		conns:     make(map[string]*grpc.ClientConn),
+		clients:   make(map[string]pb.RaftServiceClient),
+	}
+}
+
+func (t *GRPCTransport) client(peerID string) (pb.RaftServiceClient, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if c, ok := t.clients[peerID]; ok {
+		return c, nil
+	}
+
+	addr, ok := t.peerAddrs[peerID]
+	if !ok {
+		return nil, fmt.Errorf("raft: unknown peer %q", peerID)
+	}
+
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, err
+	}
+
+	c := pb.NewRaftServiceClient(conn)
+	t.conns[peerID] = conn
+	t.clients[peerID] = c
+	return c, nil
+}
+
+func (t *GRPCTransport) invalidate(peerID string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if conn, ok := t.conns[peerID]; ok {
+		_ = conn.Close()
+		delete(t.conns, peerID)
+		delete(t.clients, peerID)
+	}
+}
+
+// Close closes all open peer connections.
+func (t *GRPCTransport) Close() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	for _, conn := range t.conns {
+		_ = conn.Close()
+	}
+	t.conns = make(map[string]*grpc.ClientConn)
+	t.clients = make(map[string]pb.RaftServiceClient)
+}
+
+func toPBLogEntries(entries []LogEntry) []*pb.LogEntry {
+	if len(entries) == 0 {
+		return nil
+	}
+	res := make([]*pb.LogEntry, len(entries))
+	for i, e := range entries {
+		res[i] = &pb.LogEntry{
+			Index:    int64(e.Index),
+			Term:     int64(e.Term),
+			Type:     string(e.Type),
+			TaskId:   e.TaskID,
+			Payload:  e.Payload,
+			WorkerId: e.WorkerID,
+			Cause:    e.Cause,
+		}
+	}
+	return res
+}
+
+func fromPBLogEntries(entries []*pb.LogEntry) []LogEntry {
+	if len(entries) == 0 {
+		return nil
+	}
+	res := make([]LogEntry, len(entries))
+	for i, e := range entries {
+		res[i] = LogEntry{
+			Index:    int(e.Index),
+			Term:     int(e.Term),
+			Type:     CommandType(e.Type),
+			TaskID:   e.TaskId,
+			Payload:  e.Payload,
+			WorkerID: e.WorkerId,
+			Cause:    e.Cause,
+		}
+	}
+	return res
+}
+
+func (t *GRPCTransport) RequestVote(peerID string, args *RequestVoteArgs) (*RequestVoteReply, error) {
+	c, err := t.client(peerID)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+
+	resp, err := c.RequestVote(ctx, &pb.RequestVoteRequest{
+		Term:         int64(args.Term),
+		CandidateId:  args.CandidateID,
+		LastLogIndex: int64(args.LastLogIndex),
+		LastLogTerm:  int64(args.LastLogTerm),
+	})
+	if err != nil {
+		t.invalidate(peerID)
+		return nil, err
+	}
+	return &RequestVoteReply{
+		Term:        int(resp.Term),
+		VoteGranted: resp.VoteGranted,
+	}, nil
+}
+
+func (t *GRPCTransport) Heartbeat(peerID string, args *HeartbeatArgs) (*HeartbeatReply, error) {
+	c, err := t.client(peerID)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+
+	resp, err := c.AppendEntries(ctx, &pb.AppendEntriesRequest{
+		Term:         int64(args.Term),
+		LeaderId:     args.LeaderID,
+		PrevLogIndex: int64(args.PrevLogIndex),
+		PrevLogTerm:  int64(args.PrevLogTerm),
+		Entries:      toPBLogEntries(args.Entries),
+		LeaderCommit: int64(args.LeaderCommit),
+	})
+	if err != nil {
+		t.invalidate(peerID)
+		return nil, err
+	}
+	return &HeartbeatReply{
+		Term:          int(resp.Term),
+		Success:       resp.Success,
+		MatchIndex:    int(resp.MatchIndex),
+		ConflictTerm:  int(resp.ConflictTerm),
+		ConflictIndex: int(resp.ConflictIndex),
+	}, nil
+}
+
+// GRPCRaftServer implements pb.RaftServiceServer and forwards calls to the underlying Node.
+type GRPCRaftServer struct {
+	pb.UnimplementedRaftServiceServer
+	Node *Node
+}
+
+func (s *GRPCRaftServer) RequestVote(ctx context.Context, req *pb.RequestVoteRequest) (*pb.RequestVoteResponse, error) {
+	args := &RequestVoteArgs{
+		Term:         int(req.Term),
+		CandidateID:  req.CandidateId,
+		LastLogIndex: int(req.LastLogIndex),
+		LastLogTerm:  int(req.LastLogTerm),
+	}
+	reply := s.Node.HandleRequestVote(args)
+	return &pb.RequestVoteResponse{
+		Term:        int64(reply.Term),
+		VoteGranted: reply.VoteGranted,
+	}, nil
+}
+
+func (s *GRPCRaftServer) AppendEntries(ctx context.Context, req *pb.AppendEntriesRequest) (*pb.AppendEntriesResponse, error) {
+	args := &HeartbeatArgs{
+		Term:         int(req.Term),
+		LeaderID:     req.LeaderId,
+		PrevLogIndex: int(req.PrevLogIndex),
+		PrevLogTerm:  int(req.PrevLogTerm),
+		Entries:      fromPBLogEntries(req.Entries),
+		LeaderCommit: int(req.LeaderCommit),
+	}
+	reply := s.Node.HandleHeartbeat(args)
+	return &pb.AppendEntriesResponse{
+		Term:          int64(reply.Term),
+		Success:       reply.Success,
+		MatchIndex:    int64(reply.MatchIndex),
+		ConflictTerm:  int64(reply.ConflictTerm),
+		ConflictIndex: int64(reply.ConflictIndex),
+	}, nil
+}
