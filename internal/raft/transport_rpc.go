@@ -83,6 +83,19 @@ func (t *RPCTransport) Heartbeat(peerID string, args *HeartbeatArgs) (*Heartbeat
 	return reply, nil
 }
 
+func (t *RPCTransport) InstallSnapshot(peerID string, args *InstallSnapshotArgs) (*InstallSnapshotReply, error) {
+	c, err := t.client(peerID)
+	if err != nil {
+		return nil, err
+	}
+	reply := &InstallSnapshotReply{}
+	if err := c.Call("RaftService.InstallSnapshot", args, reply); err != nil {
+		t.invalidate(peerID)
+		return nil, err
+	}
+	return reply, nil
+}
+
 // RaftService is the RPC-exported wrapper around a Node, registered on
 // each cluster member's rpc.Server so peers can call RequestVote/Heartbeat
 // on it.
@@ -97,5 +110,10 @@ func (s *RaftService) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply
 
 func (s *RaftService) Heartbeat(args *HeartbeatArgs, reply *HeartbeatReply) error {
 	*reply = *s.Node.HandleHeartbeat(args)
+	return nil
+}
+
+func (s *RaftService) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapshotReply) error {
+	*reply = *s.Node.HandleInstallSnapshot(args)
 	return nil
 }
