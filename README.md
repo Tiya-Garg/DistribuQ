@@ -109,7 +109,6 @@ The harness exits non-zero if any task never ran. Tasks running more than once a
 This is a portfolio/learning prototype. Known gaps:
 
 - **At-least-once execution.** A slow (not declared dead) worker can cause a task to run twice: it finishes after being declared dead and reassigned. This is expected and reported by the chaos harness.
-- **No log compaction / snapshots.** The persisted Raft log grows without bound. In production this would be bounded with snapshotting (Raft §7).
 - **Single-term sequential dispatch.** Tasks are dispatched by the leader only; followers serve status reads but don't dispatch. This is correct but means throughput scales with a single leader's capacity.
 - **No authentication or TLS.** Task payloads run via `sh -c`, so only run this on a trusted network.
 
@@ -123,7 +122,7 @@ This is a portfolio/learning prototype. Known gaps:
 - [x] Replicate task state to followers (AppendEntries, majority commit, log repair)
 - [x] Chaos test harness (random worker/leader kills under load)
 - [x] GitHub Actions CI with race detector and chaos test
-- [ ] Log compaction / snapshotting
+- [x] Log compaction / snapshotting (Raft §7 log truncation, InstallSnapshot RPC, and durable snapshots)
 - [x] Swap `net/rpc` for gRPC (Protobuf schemas, Raft/Scheduler/Worker gRPC transports)
 
 ## License
