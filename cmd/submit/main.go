@@ -7,12 +7,18 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log"
-	"net/rpc"
 	"strings"
+	"time"
 
 	"github.com/Tiya-Garg/DistribuQ/internal/scheduler"
+	pb "github.com/Tiya-Garg/DistribuQ/proto"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 )
 
 func main() {
@@ -26,7 +32,6 @@ func main() {
 	}
 
 	addrs := strings.Split(*addrsFlag, ",")
-	args := struct{ TaskID, Payload string }{TaskID: *id, Payload: *payload}
 
 	var lastErr error
 	for _, addr := range addrs {
@@ -35,30 +40,29 @@ func main() {
 			continue
 		}
 
-		client, err := rpc.Dial("tcp", addr)
+		conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			lastErr = err
 			log.Printf("dial %s failed: %v, trying next", addr, err)
 			continue
 		}
 
-		var reply struct{ OK bool }
-		callErr := client.Call("SchedulerService.SubmitTask", &args, &reply)
-		client.Close()
+		client := pb.NewSchedulerServiceClient(conn)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		resp, callErr := client.SubmitTask(ctx, &pb.SubmitTaskRequest{
+			TaskId:  *id,
+			Payload: *payload,
+		})
+		cancel()
+		conn.Close()
 
 		if callErr == nil {
-			log.Printf("submitted task %s to %s: ok=%v", *id, addr, reply.OK)
+			log.Printf("submitted task %s to %s: ok=%v", *id, addr, resp.Ok)
 			return
 		}
 
 		lastErr = callErr
-		// net/rpc serializes errors as plain strings and reconstructs
-		// them as generic errors on the client side, so the original
-		// sentinel value doesn't survive the round trip -- errors.Is
-		// against scheduler.ErrNotLeader would never match here.
-		// Comparing the message text is the reliable option for a
-		// net/rpc-based service.
-		if callErr.Error() == scheduler.ErrNotLeader.Error() {
+		if st, ok := status.FromError(callErr); ok && st.Code() == codes.FailedPrecondition && strings.Contains(st.Message(), scheduler.ErrNotLeader.Error()) {
 			log.Printf("%s is not the leader, trying next", addr)
 			continue
 		}
