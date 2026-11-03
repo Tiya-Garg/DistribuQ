@@ -166,6 +166,30 @@ func (t *GRPCTransport) Heartbeat(peerID string, args *HeartbeatArgs) (*Heartbea
 	}, nil
 }
 
+func (t *GRPCTransport) InstallSnapshot(peerID string, args *InstallSnapshotArgs) (*InstallSnapshotReply, error) {
+	c, err := t.client(peerID)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	resp, err := c.InstallSnapshot(ctx, &pb.InstallSnapshotRequest{
+		Term:              int64(args.Term),
+		LeaderId:          args.LeaderID,
+		LastIncludedIndex: int64(args.LastIncludedIndex),
+		LastIncludedTerm:  int64(args.LastIncludedTerm),
+		Data:              args.Data,
+	})
+	if err != nil {
+		t.invalidate(peerID)
+		return nil, err
+	}
+	return &InstallSnapshotReply{
+		Term: int(resp.Term),
+	}, nil
+}
+
 // GRPCRaftServer implements pb.RaftServiceServer and forwards calls to the underlying Node.
 type GRPCRaftServer struct {
 	pb.UnimplementedRaftServiceServer
@@ -202,5 +226,19 @@ func (s *GRPCRaftServer) AppendEntries(ctx context.Context, req *pb.AppendEntrie
 		MatchIndex:    int64(reply.MatchIndex),
 		ConflictTerm:  int64(reply.ConflictTerm),
 		ConflictIndex: int64(reply.ConflictIndex),
+	}, nil
+}
+
+func (s *GRPCRaftServer) InstallSnapshot(ctx context.Context, req *pb.InstallSnapshotRequest) (*pb.InstallSnapshotResponse, error) {
+	args := &InstallSnapshotArgs{
+		Term:              int(req.Term),
+		LeaderID:          req.LeaderId,
+		LastIncludedIndex: int(req.LastIncludedIndex),
+		LastIncludedTerm:  int(req.LastIncludedTerm),
+		Data:              req.Data,
+	}
+	reply := s.Node.HandleInstallSnapshot(args)
+	return &pb.InstallSnapshotResponse{
+		Term: int64(reply.Term),
 	}, nil
 }
