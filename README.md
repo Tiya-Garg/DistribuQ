@@ -1,18 +1,16 @@
 # DistribuQ
 
-A fault-tolerant distributed task scheduler written in Go. Multiple scheduler replicas elect a leader via a Raft-inspired protocol; the leader replicates every task event (submit, assign, complete, fail) to followers before acknowledging it; workers heartbeat all replicas so whichever one wins the next election can dispatch immediately.
-
-Zero external dependencies: standard library only.
+A fault-tolerant distributed task scheduler written in Go. Multiple scheduler replicas elect a leader via a Raft-inspired protocol; the leader replicates every task event (submit, assign, complete, fail) to followers before acknowledging it; workers heartbeat all replicas so whichever one wins the next election can dispatch immediately. Inter-node consensus, worker dispatch, and CLI communications are fully implemented with gRPC and Protocol Buffers.
 
 ## Architecture
 
 ```
-                 ┌────────────┐   RequestVote / Heartbeat   ┌────────────┐
-   submit ──────▶│ scheduler  │ ◀───────────────────────▶  │ scheduler  │
-   (client)      │  (leader)  │  replicated Raft log        │ (follower) │
-                 └─────┬──────┘                             └────────────┘
+                 ┌────────────┐   RequestVote / AppendEntries   ┌────────────┐
+   submit ──────▶│ scheduler  │ ◀─────────────────────────────▶│ scheduler  │
+   (client)      │  (leader)  │         replicated log          │ (follower) │
+                 └─────┬──────┘             (gRPC)              └────────────┘
           dispatch     │  ▲ register / heartbeat /
-          (net/rpc)    │  │ complete / fail
+          (gRPC)       │  │ complete / fail (gRPC)
                  ┌─────▼──┴───┐   ┌────────────┐
                  │  worker 1  │   │  worker 2  │ ...
                  └────────────┘   └────────────┘
@@ -20,16 +18,17 @@ Zero external dependencies: standard library only.
 
 | Package | Responsibility |
 | --- | --- |
+| `proto` | Protocol Buffer definitions and generated gRPC clients/servers for Raft, Scheduler, and Worker services |
 | `internal/raft` | Raft-style leader election **and log replication** (terms, randomised timeouts, RequestVote, AppendEntries / heartbeats, election restriction, majority commit) behind a `Transport` interface |
 | `internal/scheduler` | Task queue, least-loaded dispatch, retries (max 3 attempts), dead-worker detection and task reassignment; applies committed Raft log entries |
-| `internal/worker` | Worker RPC service, heartbeat loop, shell-command executor with timeout |
+| `internal/worker` | Worker gRPC service, heartbeat loop, shell-command executor with timeout |
 | `cmd/scheduler` | Runs one scheduler replica; `-data-dir` persists Raft state across restarts |
 | `cmd/worker` | Runs one worker; `-scheduler` accepts a comma-separated list of replica addresses |
 | `cmd/submit` | CLI to submit a task; tries each replica until it finds the leader |
 | `cmd/status` | CLI to view a replica's tasks and worker count |
 | `cmd/chaos` | End-to-end failure-injection test (random worker + leader kills under load) |
 
-The `raft.Transport` interface and the scheduler's `dispatchFn` are injected, not hardwired to an RPC library. Communication currently uses Go's standard library `net/rpc`. Moving to gRPC means writing a new `Transport` implementation with no changes to the election or scheduling logic.
+The `raft.Transport` interface and the scheduler's `dispatchFn` are injected, decoupled from the underlying transport. Node-to-node consensus, worker orchestration, and client interactions are powered by **gRPC and Protocol Buffers**.
 
 ## Task lifecycle
 
@@ -125,7 +124,7 @@ This is a portfolio/learning prototype. Known gaps:
 - [x] Chaos test harness (random worker/leader kills under load)
 - [x] GitHub Actions CI with race detector and chaos test
 - [ ] Log compaction / snapshotting
-- [ ] Swap `net/rpc` for gRPC
+- [x] Swap `net/rpc` for gRPC (Protobuf schemas, Raft/Scheduler/Worker gRPC transports)
 
 ## License
 
