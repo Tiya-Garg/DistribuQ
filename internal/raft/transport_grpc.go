@@ -89,6 +89,7 @@ func toPBLogEntries(entries []LogEntry) []*pb.LogEntry {
 			Payload:  e.Payload,
 			WorkerId: e.WorkerID,
 			Cause:    e.Cause,
+			Priority: int32(e.Priority),
 		}
 	}
 	return res
@@ -108,6 +109,7 @@ func fromPBLogEntries(entries []*pb.LogEntry) []LogEntry {
 			Payload:  e.Payload,
 			WorkerID: e.WorkerId,
 			Cause:    e.Cause,
+			Priority: int(e.Priority),
 		}
 	}
 	return res
