@@ -8,8 +8,8 @@ import (
 
 func TestSchedulerEncodeAndRestoreSnapshot(t *testing.T) {
 	s := NewScheduler(nil)
-	s.ApplyEntry(raft.LogEntry{Type: raft.CmdSubmit, TaskID: "t1", Payload: "echo 1"})
-	s.ApplyEntry(raft.LogEntry{Type: raft.CmdSubmit, TaskID: "t2", Payload: "echo 2"})
+	s.ApplyEntry(raft.LogEntry{Type: raft.CmdSubmit, TaskID: "t1", Payload: "echo 1", Priority: 1})
+	s.ApplyEntry(raft.LogEntry{Type: raft.CmdSubmit, TaskID: "t2", Payload: "echo 2", Priority: 3})
 	s.ApplyEntry(raft.LogEntry{Type: raft.CmdAssign, TaskID: "t1", WorkerID: "w1"})
 	s.ApplyEntry(raft.LogEntry{Type: raft.CmdComplete, TaskID: "t1"})
 
@@ -36,7 +36,7 @@ func TestSchedulerEncodeAndRestoreSnapshot(t *testing.T) {
 
 	// Verify task metadata
 	t2 := s2.tasks["t2"]
-	if t2 == nil || t2.Payload != "echo 2" || t2.MaxRetries != 3 {
+	if t2 == nil || t2.Payload != "echo 2" || t2.MaxRetries != 3 || t2.Priority != 3 {
 		t.Errorf("t2 metadata not restored properly: %+v", t2)
 	}
 }
