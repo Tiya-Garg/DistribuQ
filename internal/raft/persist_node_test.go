@@ -55,7 +55,7 @@ func TestElectionPersistsTermAndSelfVote(t *testing.T) {
 	n := newPersistedNode(t, path)
 	n.startElection() // peers are unknown to the fake transport; election just can't win
 
-	term, votedFor, _, err := NewFilePersister(path).Load()
+	term, votedFor, _, _, _, _, err := NewFilePersister(path).Load()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,8 +66,12 @@ func TestElectionPersistsTermAndSelfVote(t *testing.T) {
 
 type failingPersister struct{}
 
-func (failingPersister) Load() (int, string, []LogEntry, error) { return 0, "", nil, nil }
-func (failingPersister) Save(int, string, []LogEntry) error     { return errors.New("disk full") }
+func (failingPersister) Load() (int, string, []LogEntry, int, int, []byte, error) {
+	return 0, "", nil, 0, 0, nil, nil
+}
+func (failingPersister) Save(int, string, []LogEntry, int, int, []byte) error {
+	return errors.New("disk full")
+}
 
 func TestVoteRefusedWhenItCannotBePersisted(t *testing.T) {
 	n := NewNode("n1", []string{"n2", "n3"}, newFakeTransport())
