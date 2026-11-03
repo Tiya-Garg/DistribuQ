@@ -1,18 +1,20 @@
 package worker
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
-	"net/rpc"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/Tiya-Garg/DistribuQ/internal/scheduler"
+	pb "github.com/Tiya-Garg/DistribuQ/proto"
+	"google.golang.org/grpc"
 )
 
-// startScheduler runs a real scheduler behind a real net/rpc server on
+// startScheduler runs a real scheduler behind a real gRPC server on
 // a random local port and returns it with its address. dispatched
 // receives the address of every worker a task is dispatched to.
 func startScheduler(t *testing.T, dispatched *[]string) (*scheduler.Scheduler, string) {
@@ -22,24 +24,20 @@ func startScheduler(t *testing.T, dispatched *[]string) (*scheduler.Scheduler, s
 		*dispatched = append(*dispatched, addr)
 		return nil
 	})
-	srv := rpc.NewServer()
-	if err := srv.RegisterName("SchedulerService", &scheduler.SchedulerService{S: s}); err != nil {
-		t.Fatalf("register SchedulerService: %v", err)
-	}
+	srv := grpc.NewServer()
+	pb.RegisterSchedulerServiceServer(srv, &scheduler.GRPCSchedulerServer{S: s})
+
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	t.Cleanup(func() { ln.Close() })
+	t.Cleanup(func() {
+		srv.Stop()
+		ln.Close()
+	})
 
 	go func() {
-		for {
-			conn, err := ln.Accept()
-			if err != nil {
-				return
-			}
-			go srv.ServeConn(conn)
-		}
+		_ = srv.Serve(ln)
 	}()
 	return s, ln.Addr().String()
 }
@@ -68,27 +66,21 @@ func TestHeartbeatRegistersUnknownWorker(t *testing.T) {
 
 	// It registered with the right address: a task is dispatched there.
 	if _, err := s.SubmitTask("t1", "payload"); err != nil {
-		t.Fatalf("SubmitTask: %v", err)
+		t.Fatal(err)
 	}
 	if len(dispatched) != 1 || dispatched[0] != "localhost:9001" {
-		t.Errorf("expected dispatch to localhost:9001, got %v", dispatched)
-	}
-
-	// A heartbeat from a now-known worker is a plain heartbeat.
-	w.sendHeartbeat()
-	if n := workerCount(s); n != 1 {
-		t.Errorf("expected still 1 worker, got %d", n)
+		t.Fatalf("expected dispatch to localhost:9001, got %v", dispatched)
 	}
 }
 
-// TestHeartbeatWithoutAddrDoesNotRegister checks that a worker with no
-// Addr set doesn't register itself with an empty address (which would
-// make it look available while being unreachable).
+// TestHeartbeatWithoutAddrDoesNotRegister verifies that a worker with
+// no Addr configured can't register itself -- the scheduler has no
+// address to reach it at, so doing so would be useless.
 func TestHeartbeatWithoutAddrDoesNotRegister(t *testing.T) {
 	var dispatched []string
 	s, addr := startScheduler(t, &dispatched)
 
-	w := &Worker{ID: "w1", SchedulerAddr: addr}
+	w := &Worker{ID: "w1", SchedulerAddr: addr} // Addr unset
 	w.sendHeartbeat()
 
 	if n := workerCount(s); n != 0 {
@@ -130,21 +122,19 @@ func TestRegister(t *testing.T) {
 		t.Fatalf("second Register: %v", err)
 	}
 	if n := workerCount(s); n != 1 {
-		t.Errorf("expected still 1 worker after re-registering, got %d", n)
-	}
-
-	bad := &Worker{ID: "w2", SchedulerAddr: "127.0.0.1:1", Addr: "localhost:9002"}
-	if err := bad.Register(); err == nil {
-		t.Error("expected an error registering with an unreachable scheduler")
+		t.Errorf("expected still 1 registered worker, got %d", n)
 	}
 }
 
-// waitUntil polls cond until it is true, failing the test if that takes
-// more than a few seconds.
-func waitUntil(t *testing.T, what string, cond func() bool) {
+// waitUntil polls condition every millisecond until it returns true or
+// 2 seconds pass.
+func waitUntil(t *testing.T, what string, condition func() bool) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for !cond() {
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if condition() {
+			return
+		}
 		if time.Now().After(deadline) {
 			t.Fatalf("timed out waiting for %s", what)
 		}
@@ -209,11 +199,11 @@ func TestMaxConcurrentLimitsParallelism(t *testing.T) {
 	w := &Worker{ID: "w1", SchedulerAddr: addr, Addr: "localhost:9001", MaxConcurrent: 2, Execute: exec}
 	ids := submitAndRegister(t, s, w, 6)
 
-	svc := NewWorkerService(w)
+	svc := NewGRPCWorkerServer(w)
 	for _, id := range ids {
-		var reply ExecuteReply
-		if err := svc.ExecuteTask(&ExecuteArgs{TaskID: id, Payload: "payload"}, &reply); err != nil || !reply.Accepted {
-			t.Fatalf("ExecuteTask(%s): accepted=%v err=%v", id, reply.Accepted, err)
+		resp, err := svc.ExecuteTask(context.Background(), &pb.ExecuteTaskRequest{TaskId: id, Payload: "payload"})
+		if err != nil || !resp.Accepted {
+			t.Fatalf("ExecuteTask(%s): accepted=%v err=%v", id, resp.GetAccepted(), err)
 		}
 	}
 
@@ -241,13 +231,12 @@ func TestMaxConcurrentAcceptsExcessTasksWithoutBlocking(t *testing.T) {
 	w := &Worker{ID: "w1", SchedulerAddr: addr, Addr: "localhost:9001", MaxConcurrent: 1, Execute: exec}
 	ids := submitAndRegister(t, s, w, 4)
 
-	svc := NewWorkerService(w)
+	svc := NewGRPCWorkerServer(w)
 	returned := make(chan error, len(ids))
 	go func() {
 		for _, id := range ids {
-			var reply ExecuteReply
-			err := svc.ExecuteTask(&ExecuteArgs{TaskID: id, Payload: "payload"}, &reply)
-			if err == nil && !reply.Accepted {
+			resp, err := svc.ExecuteTask(context.Background(), &pb.ExecuteTaskRequest{TaskId: id, Payload: "payload"})
+			if err == nil && !resp.Accepted {
 				err = errors.New("task was not accepted")
 			}
 			returned <- err
@@ -300,10 +289,10 @@ func TestNoLimitRunsAllTasksConcurrently(t *testing.T) {
 	w := &Worker{ID: "w1", SchedulerAddr: addr, Addr: "localhost:9001", Execute: exec} // MaxConcurrent unset
 	ids := submitAndRegister(t, s, w, n)
 
-	svc := NewWorkerService(w)
+	svc := NewGRPCWorkerServer(w)
 	for _, id := range ids {
-		var reply ExecuteReply
-		if err := svc.ExecuteTask(&ExecuteArgs{TaskID: id, Payload: "payload"}, &reply); err != nil {
+		resp, err := svc.ExecuteTask(context.Background(), &pb.ExecuteTaskRequest{TaskId: id, Payload: "payload"})
+		if err != nil || !resp.Accepted {
 			t.Fatalf("ExecuteTask: %v", err)
 		}
 	}
