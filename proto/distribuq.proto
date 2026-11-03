@@ -16,6 +16,7 @@ message LogEntry {
   string payload = 5;
   string worker_id = 6;
   string cause = 7;
+  int32 priority = 8;
 }
 
 message RequestVoteRequest {
@@ -89,6 +90,7 @@ message HeartbeatResponse {
 message SubmitTaskRequest {
   string task_id = 1;
   string payload = 2;
+  int32 priority = 3;
 }
 
 message SubmitTaskResponse {
