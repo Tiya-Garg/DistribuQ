@@ -41,7 +41,7 @@ func (s *GRPCSchedulerServer) SubmitTask(ctx context.Context, req *pb.SubmitTask
 	if !s.requireLeader() {
 		return nil, status.Error(codes.FailedPrecondition, ErrNotLeader.Error())
 	}
-	if _, err := s.S.SubmitTask(req.TaskId, req.Payload); err != nil {
+	if _, err := s.S.SubmitTaskWithPriority(req.TaskId, req.Payload, int(req.Priority)); err != nil {
 		if errors.Is(err, ErrDuplicateTask) {
 			return nil, status.Error(codes.AlreadyExists, err.Error())
 		}
