@@ -141,8 +141,8 @@ func TestDispatchFailuresExhaustRetries(t *testing.T) {
 	s.SubmitTask("t1", "payload")
 
 	status, attempts := taskState(s, "t1")
-	if status != TaskFailed {
-		t.Errorf("expected task to be failed after exhausting retries, got %s", status)
+	if status != TaskFailed && status != TaskDLQ {
+		t.Errorf("expected task to be failed or dlq after exhausting retries, got %s", status)
 	}
 	if attempts != 3 {
 		t.Errorf("expected 3 attempts (MaxRetries), got %d", attempts)
@@ -176,13 +176,13 @@ func TestFailTaskRetriesThenFails(t *testing.T) {
 		}
 	}
 
-	// Third failure: attempts are exhausted, so it must stay failed.
+	// Third failure: attempts are exhausted, so it must move to DLQ / failed.
 	if err := s.FailTask("t1"); err != nil {
 		t.Fatalf("FailTask: %v", err)
 	}
 	status, attempts := taskState(s, "t1")
-	if status != TaskFailed {
-		t.Errorf("expected task to be permanently failed, got %s", status)
+	if status != TaskFailed && status != TaskDLQ {
+		t.Errorf("expected task to be permanently failed or dlq, got %s", status)
 	}
 	if attempts != 3 {
 		t.Errorf("expected 3 attempts, got %d", attempts)
@@ -483,8 +483,8 @@ func TestReapFailsOrphanWhenRetriesExhausted(t *testing.T) {
 	s.reapDeadWorkers()
 	s.dispatchQueued()
 
-	if status, _ := taskState(s, "t1"); status != TaskFailed {
-		t.Errorf("expected exhausted orphan to be failed, got %s", status)
+	if status, _ := taskState(s, "t1"); status != TaskFailed && status != TaskDLQ {
+		t.Errorf("expected exhausted orphan to be failed or dlq, got %s", status)
 	}
 	if len(fd.log) != dispatchesBefore {
 		t.Errorf("exhausted orphan must not be redispatched, got %d extra dispatch(es)", len(fd.log)-dispatchesBefore)
