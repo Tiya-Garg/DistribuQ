@@ -18,6 +18,10 @@ import (
 func main() {
 	addr := flag.String("scheduler", "localhost:8000", "scheduler replica address to query")
 	showDLQ := flag.Bool("dlq", false, "display only Dead Letter Queue (DLQ) tasks with error reasons")
+	showCluster := flag.Bool("cluster", false, "display current Raft cluster leader and member peers")
+	addPeerID := flag.String("add-peer", "", "peer ID to dynamically add to the cluster")
+	addPeerAddr := flag.String("add-peer-addr", "", "peer address to dynamically add to the cluster")
+	removePeerID := flag.String("remove-peer", "", "peer ID to dynamically remove from the cluster")
 	caCert := flag.String("ca-cert", "", "path to CA root certificate for mTLS")
 	tlsCert := flag.String("tls-cert", "", "path to client TLS certificate for mTLS")
 	tlsKey := flag.String("tls-key", "", "path to client TLS private key for mTLS")
@@ -45,6 +49,42 @@ func main() {
 	client := pb.NewSchedulerServiceClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
+
+	if *addPeerID != "" {
+		if *addPeerAddr == "" {
+			log.Fatalf("-add-peer-addr is required when using -add-peer")
+		}
+		_, err := client.AddPeer(ctx, &pb.AddPeerRequest{
+			PeerId:   *addPeerID,
+			PeerAddr: *addPeerAddr,
+		})
+		if err != nil {
+			log.Fatalf("AddPeer %s failed: %v", *addPeerID, err)
+		}
+		fmt.Printf("successfully added peer %s (%s) to the cluster\n", *addPeerID, *addPeerAddr)
+		return
+	}
+
+	if *removePeerID != "" {
+		_, err := client.RemovePeer(ctx, &pb.RemovePeerRequest{
+			PeerId: *removePeerID,
+		})
+		if err != nil {
+			log.Fatalf("RemovePeer %s failed: %v", *removePeerID, err)
+		}
+		fmt.Printf("successfully removed peer %s from the cluster\n", *removePeerID)
+		return
+	}
+
+	if *showCluster {
+		cReply, err := client.GetClusterMembership(ctx, &pb.ClusterMembershipRequest{})
+		if err != nil {
+			log.Fatalf("cluster membership query failed: %v", err)
+		}
+		fmt.Printf("leader: %s\n", cReply.LeaderId)
+		fmt.Printf("peers (%d): %v\n", len(cReply.Peers), cReply.Peers)
+		return
+	}
 
 	if *showDLQ {
 		dlqReply, err := client.GetDLQ(ctx, &pb.GetDLQRequest{})
