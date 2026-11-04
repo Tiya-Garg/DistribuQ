@@ -111,7 +111,7 @@ func TestInstallSnapshotCatchesUpLaggingFollower(t *testing.T) {
 		return false
 	})
 
-	// Disconnect follower n3
+	// Disconnect follower from all nodes so it lags behind
 	var follower *Node
 	for _, n := range nodes {
 		if n.ID != leader.ID {
@@ -119,8 +119,12 @@ func TestInstallSnapshotCatchesUpLaggingFollower(t *testing.T) {
 			break
 		}
 	}
-	ft.Disconnect(leader.ID, follower.ID)
-	ft.Disconnect(follower.ID, leader.ID)
+	for _, n := range nodes {
+		if n.ID != follower.ID {
+			ft.Disconnect(n.ID, follower.ID)
+			ft.Disconnect(follower.ID, n.ID)
+		}
+	}
 
 	// Propose 5 entries while follower is disconnected
 	for i := 1; i <= 5; i++ {
@@ -142,9 +146,13 @@ func TestInstallSnapshotCatchesUpLaggingFollower(t *testing.T) {
 		receivedSnapshot.Store(data)
 	})
 
-	// Reconnect follower
-	ft.Connect(leader.ID, follower.ID)
-	ft.Connect(follower.ID, leader.ID)
+	// Reconnect follower to all nodes
+	for _, n := range nodes {
+		if n.ID != follower.ID {
+			ft.Connect(n.ID, follower.ID)
+			ft.Connect(follower.ID, n.ID)
+		}
+	}
 
 	// The leader must detect nextIndex[follower] <= lastIncludedIndex and send InstallSnapshot
 	waitForCondition(t, 5*time.Second, func() bool {
