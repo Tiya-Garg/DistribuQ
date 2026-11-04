@@ -17,9 +17,9 @@ import (
 	"github.com/Tiya-Garg/DistribuQ/internal/dashboard"
 	"github.com/Tiya-Garg/DistribuQ/internal/raft"
 	"github.com/Tiya-Garg/DistribuQ/internal/scheduler"
+	"github.com/Tiya-Garg/DistribuQ/internal/security"
 	pb "github.com/Tiya-Garg/DistribuQ/proto"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -28,6 +28,10 @@ func main() {
 	httpAddr := flag.String("http", "", "optional HTTP address to serve web dashboard and REST/SSE API (e.g. :8080)")
 	peersFlag := flag.String("peers", "", "comma-separated id=addr pairs for other scheduler replicas")
 	dataDir := flag.String("data-dir", "", "directory for durable Raft state (term, vote, replicated log, and snapshots); empty keeps state in memory only")
+	caCert := flag.String("ca-cert", "", "path to CA root certificate for mTLS")
+	tlsCert := flag.String("tls-cert", "", "path to server/client TLS certificate for mTLS")
+	tlsKey := flag.String("tls-key", "", "path to TLS private key for mTLS")
+	serverName := flag.String("server-name", "localhost", "expected TLS server name (SAN) for dial verification")
 	flag.Parse()
 
 	if *id == "" {
@@ -40,8 +44,20 @@ func main() {
 		peerIDs = append(peerIDs, pid)
 	}
 
+	tlsCfg := &security.TLSConfig{
+		CACertPath: *caCert,
+		CertPath:   *tlsCert,
+		KeyPath:    *tlsKey,
+		ServerName: *serverName,
+	}
+
+	dialOpt, err := tlsCfg.DialOption()
+	if err != nil {
+		log.Fatalf("failed to configure TLS dial options: %v", err)
+	}
+
 	dispatch := func(workerID, workerAddr string, task *scheduler.Task) error {
-		conn, err := grpc.NewClient(workerAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		conn, err := grpc.NewClient(workerAddr, dialOpt)
 		if err != nil {
 			return err
 		}
@@ -67,7 +83,7 @@ func main() {
 	sched := scheduler.NewScheduler(dispatch)
 	go sched.MonitorWorkers(500 * time.Millisecond)
 
-	transport := raft.NewGRPCTransport(peerAddrs)
+	transport := raft.NewGRPCTransportWithDialOpt(peerAddrs, dialOpt)
 	node := raft.NewNode(*id, peerIDs, transport)
 	sched.SetRaftProposer(node)
 	node.OnApply(func(entry raft.LogEntry) {
@@ -109,7 +125,17 @@ func main() {
 		log.Printf("[%s] stepped down to FOLLOWER (leader is %q)", *id, node.LeaderID())
 	})
 
-	server := grpc.NewServer()
+	var srvOpts []grpc.ServerOption
+	if tlsCfg.IsEnabled() {
+		srvOpt, err := tlsCfg.ServerOption()
+		if err != nil {
+			log.Fatalf("failed to configure TLS server option: %v", err)
+		}
+		srvOpts = append(srvOpts, srvOpt)
+		log.Printf("[%s] mTLS enabled for gRPC services (CA: %s)", *id, *caCert)
+	}
+
+	server := grpc.NewServer(srvOpts...)
 	pb.RegisterRaftServiceServer(server, &raft.GRPCRaftServer{Node: node})
 	pb.RegisterSchedulerServiceServer(server, &scheduler.GRPCSchedulerServer{
 		S:        sched,
