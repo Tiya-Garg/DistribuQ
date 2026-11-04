@@ -30,13 +30,14 @@ const (
 )
 
 type Task struct {
-	ID         string
-	Payload    string
-	Status     TaskStatus
-	WorkerID   string
-	Attempts   int
-	MaxRetries int
-	Priority   int
+	ID          string
+	Payload     string
+	Status      TaskStatus
+	WorkerID    string
+	Attempts    int
+	MaxRetries  int
+	Priority    int
+	RequiredTag string
 
 	// seq is the task's submission order, used to dispatch tasks that
 	// were left queued in first-come, first-served order.
@@ -57,6 +58,10 @@ type WorkerInfo struct {
 	Addr          string
 	LastHeartbeat time.Time
 	ActiveTasks   map[string]bool
+	Tags          []string
+	MaxConcurrent int
+	CPUUsage      float64
+	Draining      bool
 }
 
 var (
@@ -155,12 +160,24 @@ func (s *Scheduler) KickDispatch() {
 
 // RegisterWorker adds (or refreshes) a worker in the pool.
 func (s *Scheduler) RegisterWorker(id, addr string) {
+	s.RegisterWorkerWithOpts(id, addr, nil, 0)
+}
+
+// RegisterWorkerWithOpts registers or updates a worker with capability tags and concurrency limit.
+func (s *Scheduler) RegisterWorkerWithOpts(id, addr string, tags []string, maxConcurrent int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if w, ok := s.workers[id]; ok {
 		w.LastHeartbeat = time.Now()
 		w.Addr = addr
+		if len(tags) > 0 {
+			w.Tags = tags
+		}
+		if maxConcurrent > 0 {
+			w.MaxConcurrent = maxConcurrent
+		}
+		w.Draining = false
 		return
 	}
 	s.workers[id] = &WorkerInfo{
@@ -168,21 +185,75 @@ func (s *Scheduler) RegisterWorker(id, addr string) {
 		Addr:          addr,
 		LastHeartbeat: time.Now(),
 		ActiveTasks:   make(map[string]bool),
+		Tags:          tags,
+		MaxConcurrent: maxConcurrent,
 	}
 
-	// A new worker may be exactly what queued tasks were waiting for.
-	// Nudge the monitor without blocking the caller (usually an RPC
-	// handler); if a nudge is already pending, that one will do.
 	select {
 	case s.kick <- struct{}{}:
 	default:
 	}
 }
 
+// DrainWorker flags a worker as draining so no new tasks are dispatched to it,
+// and if it currently holds active tasks, they are immediately requeued.
+func (s *Scheduler) DrainWorker(workerID string) error {
+	s.mu.Lock()
+	w, ok := s.workers[workerID]
+	if !ok {
+		s.mu.Unlock()
+		return ErrUnknownWorker
+	}
+	w.Draining = true
+
+	var tasksToReassign []string
+	for tid := range w.ActiveTasks {
+		tasksToReassign = append(tasksToReassign, tid)
+	}
+	proposer := s.proposer
+	if proposer == nil {
+		for _, tid := range tasksToReassign {
+			if t, tok := s.tasks[tid]; tok && t.WorkerID == workerID {
+				delete(w.ActiveTasks, tid)
+				s.requeueOrFailLocked(t)
+			}
+		}
+		s.mu.Unlock()
+		s.sweepAsync()
+		return nil
+	}
+	s.mu.Unlock()
+
+	for _, tid := range tasksToReassign {
+		s.mu.Lock()
+		t, tok := s.tasks[tid]
+		valid := tok && t.WorkerID == workerID && t.Status == TaskAssigned
+		s.mu.Unlock()
+		if valid {
+			_, _, commitCh, err := proposer.Propose(raft.LogEntry{
+				Type:     raft.CmdFail,
+				TaskID:   tid,
+				WorkerID: workerID,
+				Cause:    "worker drained",
+			})
+			if err == nil {
+				<-commitCh
+			}
+		}
+	}
+	s.sweepAsync()
+	return nil
+}
+
 // Heartbeat refreshes a worker's liveness timestamp. It returns
 // ErrUnknownWorker if the worker isn't registered, so the caller can
 // tell it to register again.
 func (s *Scheduler) Heartbeat(workerID string) error {
+	return s.HeartbeatWithTelemetry(workerID, 0, 0)
+}
+
+// HeartbeatWithTelemetry updates the worker's heartbeat along with dynamic metrics.
+func (s *Scheduler) HeartbeatWithTelemetry(workerID string, activeTasks int, cpuUsage float64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -191,6 +262,7 @@ func (s *Scheduler) Heartbeat(workerID string) error {
 		return ErrUnknownWorker
 	}
 	w.LastHeartbeat = time.Now()
+	w.CPUUsage = cpuUsage
 	return nil
 }
 
@@ -203,6 +275,11 @@ func (s *Scheduler) SubmitTask(id, payload string) (*Task, error) {
 // immediate dispatch to the least-loaded healthy worker. Higher priority values
 // are dispatched before lower priority tasks.
 func (s *Scheduler) SubmitTaskWithPriority(id, payload string, priority int) (*Task, error) {
+	return s.SubmitTaskWithOpts(id, payload, priority, "")
+}
+
+// SubmitTaskWithOpts queues a task with priority and capability requirements.
+func (s *Scheduler) SubmitTaskWithOpts(id, payload string, priority int, requiredTag string) (*Task, error) {
 	if id == "" {
 		return nil, ErrEmptyTaskID
 	}
@@ -216,12 +293,13 @@ func (s *Scheduler) SubmitTaskWithPriority(id, payload string, priority int) (*T
 	if proposer == nil {
 		s.nextSeq++
 		task := &Task{
-			ID:         id,
-			Payload:    payload,
-			Status:     TaskQueued,
-			MaxRetries: 3,
-			Priority:   priority,
-			seq:        s.nextSeq,
+			ID:          id,
+			Payload:     payload,
+			Status:      TaskQueued,
+			MaxRetries:  3,
+			Priority:    priority,
+			RequiredTag: requiredTag,
+			seq:         s.nextSeq,
 		}
 		s.tasks[id] = task
 		s.mu.Unlock()
@@ -232,10 +310,11 @@ func (s *Scheduler) SubmitTaskWithPriority(id, payload string, priority int) (*T
 	s.mu.Unlock()
 
 	_, _, commitCh, err := proposer.Propose(raft.LogEntry{
-		Type:     raft.CmdSubmit,
-		TaskID:   id,
-		Payload:  payload,
-		Priority: priority,
+		Type:        raft.CmdSubmit,
+		TaskID:      id,
+		Payload:     payload,
+		Priority:    priority,
+		RequiredTag: requiredTag,
 	})
 	if err != nil {
 		return nil, err
@@ -300,7 +379,7 @@ func (s *Scheduler) dispatchAttempt(task *Task) (*Task, error) {
 		s.mu.Unlock()
 		return nil, nil
 	}
-	worker := s.pickWorkerLocked(task.tried)
+	worker := s.pickWorkerForTaskLocked(task, task.tried)
 	if worker == nil {
 		s.mu.Unlock()
 		return nil, ErrNoWorkersAvailable
@@ -425,28 +504,63 @@ func (s *Scheduler) requeueOrFailLocked(task *Task) {
 // pickLeastLoadedWorkerLocked returns the least-loaded healthy worker,
 // or nil if there is none.
 func (s *Scheduler) pickLeastLoadedWorkerLocked() *WorkerInfo {
-	return s.pickWorkerLocked(nil)
+	return s.pickWorkerForTaskLocked(nil, nil)
 }
 
 // pickWorkerLocked returns the least-loaded healthy worker, preferring
-// workers not in avoid. If every healthy worker is in avoid (a one- or
-// two-worker cluster, say), it falls back to the least-loaded of those
-// rather than leave the task with nowhere to run. Returns nil only if
-// there are no healthy workers at all.
+// workers not in avoid.
 func (s *Scheduler) pickWorkerLocked(avoid map[string]bool) *WorkerInfo {
+	return s.pickWorkerForTaskLocked(nil, avoid)
+}
+
+// pickWorkerForTaskLocked finds the best matching worker taking into account:
+// 1. Draining status (draining workers never receive new tasks)
+// 2. Required tag/capability match (if task specifies RequiredTag)
+// 3. Concurrency limits (w.MaxConcurrent)
+// 4. Lowest load (active tasks count and CPU telemetry)
+func (s *Scheduler) pickWorkerForTaskLocked(task *Task, avoid map[string]bool) *WorkerInfo {
 	var best, bestAvoided *WorkerInfo
 	now := time.Now()
 	for _, w := range s.workers {
 		if now.Sub(w.LastHeartbeat) > WorkerTimeout {
 			continue // treat as dead, skip
 		}
+		if w.Draining {
+			continue // worker is draining, do not schedule new tasks
+		}
+		if w.MaxConcurrent > 0 && len(w.ActiveTasks) >= w.MaxConcurrent {
+			continue // worker is at max concurrency capacity
+		}
+		if task != nil && task.RequiredTag != "" {
+			hasTag := false
+			for _, tag := range w.Tags {
+				if tag == task.RequiredTag {
+					hasTag = true
+					break
+				}
+			}
+			if !hasTag {
+				continue // capability tag mismatch
+			}
+		}
+
+		isBetter := func(candidate, current *WorkerInfo) bool {
+			if current == nil {
+				return true
+			}
+			if len(candidate.ActiveTasks) != len(current.ActiveTasks) {
+				return len(candidate.ActiveTasks) < len(current.ActiveTasks)
+			}
+			return candidate.CPUUsage < current.CPUUsage
+		}
+
 		if avoid[w.ID] {
-			if bestAvoided == nil || len(w.ActiveTasks) < len(bestAvoided.ActiveTasks) {
+			if isBetter(w, bestAvoided) {
 				bestAvoided = w
 			}
 			continue
 		}
-		if best == nil || len(w.ActiveTasks) < len(best.ActiveTasks) {
+		if isBetter(w, best) {
 			best = w
 		}
 	}
@@ -754,14 +868,15 @@ func (s *Scheduler) reapDeadWorkers() {
 
 // TaskView is a read-only representation of a task for the dashboard and status APIs.
 type TaskView struct {
-	ID         string     `json:"id"`
-	Payload    string     `json:"payload"`
-	Status     TaskStatus `json:"status"`
-	WorkerID   string     `json:"worker_id,omitempty"`
-	Attempts   int        `json:"attempts"`
-	MaxRetries int        `json:"max_retries"`
-	Priority   int        `json:"priority"`
-	Seq        uint64     `json:"seq"`
+	ID          string     `json:"id"`
+	Payload     string     `json:"payload"`
+	Status      TaskStatus `json:"status"`
+	WorkerID    string     `json:"worker_id,omitempty"`
+	Attempts    int        `json:"attempts"`
+	MaxRetries  int        `json:"max_retries"`
+	Priority    int        `json:"priority"`
+	RequiredTag string     `json:"required_tag,omitempty"`
+	Seq         uint64     `json:"seq"`
 }
 
 // WorkerView is a read-only representation of a worker for the dashboard and status APIs.
@@ -770,6 +885,10 @@ type WorkerView struct {
 	Addr          string    `json:"addr"`
 	LastHeartbeat time.Time `json:"last_heartbeat"`
 	ActiveTasks   int       `json:"active_tasks"`
+	Tags          []string  `json:"tags,omitempty"`
+	MaxConcurrent int       `json:"max_concurrent,omitempty"`
+	CPUUsage      float64   `json:"cpu_usage"`
+	Draining      bool      `json:"draining"`
 }
 
 // DetailedStatus returns comprehensive views of all tasks and workers.
@@ -780,14 +899,15 @@ func (s *Scheduler) DetailedStatus() (tasks []TaskView, workers []WorkerView) {
 	tasks = make([]TaskView, 0, len(s.tasks))
 	for _, t := range s.tasks {
 		tasks = append(tasks, TaskView{
-			ID:         t.ID,
-			Payload:    t.Payload,
-			Status:     t.Status,
-			WorkerID:   t.WorkerID,
-			Attempts:   t.Attempts,
-			MaxRetries: t.MaxRetries,
-			Priority:   t.Priority,
-			Seq:        t.seq,
+			ID:          t.ID,
+			Payload:     t.Payload,
+			Status:      t.Status,
+			WorkerID:    t.WorkerID,
+			Attempts:    t.Attempts,
+			MaxRetries:  t.MaxRetries,
+			Priority:    t.Priority,
+			RequiredTag: t.RequiredTag,
+			Seq:         t.seq,
 		})
 	}
 
@@ -798,6 +918,10 @@ func (s *Scheduler) DetailedStatus() (tasks []TaskView, workers []WorkerView) {
 			Addr:          w.Addr,
 			LastHeartbeat: w.LastHeartbeat,
 			ActiveTasks:   len(w.ActiveTasks),
+			Tags:          append([]string{}, w.Tags...),
+			MaxConcurrent: w.MaxConcurrent,
+			CPUUsage:      w.CPUUsage,
+			Draining:      w.Draining,
 		})
 	}
 	return tasks, workers
@@ -818,14 +942,15 @@ func (s *Scheduler) Snapshot() (tasks map[string]TaskStatus, workerCount int) {
 
 // TaskSnapshot holds the persistent state of one task in a snapshot.
 type TaskSnapshot struct {
-	ID         string     `json:"id"`
-	Payload    string     `json:"payload"`
-	Status     TaskStatus `json:"status"`
-	WorkerID   string     `json:"worker_id,omitempty"`
-	Attempts   int        `json:"attempts"`
-	MaxRetries int        `json:"max_retries"`
-	Seq        uint64     `json:"seq"`
-	Priority   int        `json:"priority,omitempty"`
+	ID          string     `json:"id"`
+	Payload     string     `json:"payload"`
+	Status      TaskStatus `json:"status"`
+	WorkerID    string     `json:"worker_id,omitempty"`
+	Attempts    int        `json:"attempts"`
+	MaxRetries  int        `json:"max_retries"`
+	Seq         uint64     `json:"seq"`
+	Priority    int        `json:"priority,omitempty"`
+	RequiredTag string     `json:"required_tag,omitempty"`
 }
 
 type schedulerSnapshotData struct {
@@ -841,14 +966,15 @@ func (s *Scheduler) EncodeState() ([]byte, error) {
 	tasks := make(map[string]TaskSnapshot, len(s.tasks))
 	for id, t := range s.tasks {
 		tasks[id] = TaskSnapshot{
-			ID:         t.ID,
-			Payload:    t.Payload,
-			Status:     t.Status,
-			WorkerID:   t.WorkerID,
-			Attempts:   t.Attempts,
-			MaxRetries: t.MaxRetries,
-			Seq:        t.seq,
-			Priority:   t.Priority,
+			ID:          t.ID,
+			Payload:     t.Payload,
+			Status:      t.Status,
+			WorkerID:    t.WorkerID,
+			Attempts:    t.Attempts,
+			MaxRetries:  t.MaxRetries,
+			Seq:         t.seq,
+			Priority:    t.Priority,
+			RequiredTag: t.RequiredTag,
 		}
 	}
 	return json.Marshal(schedulerSnapshotData{
@@ -873,15 +999,16 @@ func (s *Scheduler) RestoreFromSnapshot(data []byte) error {
 	s.tasks = make(map[string]*Task, len(snap.Tasks))
 	for id, ts := range snap.Tasks {
 		s.tasks[id] = &Task{
-			ID:         ts.ID,
-			Payload:    ts.Payload,
-			Status:     ts.Status,
-			WorkerID:   ts.WorkerID,
-			Attempts:   ts.Attempts,
-			MaxRetries: ts.MaxRetries,
-			Priority:   ts.Priority,
-			seq:        ts.Seq,
-			tried:      make(map[string]bool),
+			ID:          ts.ID,
+			Payload:     ts.Payload,
+			Status:      ts.Status,
+			WorkerID:    ts.WorkerID,
+			Attempts:    ts.Attempts,
+			MaxRetries:  ts.MaxRetries,
+			Priority:    ts.Priority,
+			RequiredTag: ts.RequiredTag,
+			seq:         ts.Seq,
+			tried:       make(map[string]bool),
 		}
 	}
 	if snap.NextSeq > s.nextSeq {
@@ -901,12 +1028,13 @@ func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
 		if _, exists := s.tasks[entry.TaskID]; !exists {
 			s.nextSeq++
 			s.tasks[entry.TaskID] = &Task{
-				ID:         entry.TaskID,
-				Payload:    entry.Payload,
-				Status:     TaskQueued,
-				Priority:   entry.Priority,
-				MaxRetries: 3,
-				seq:        s.nextSeq,
+				ID:          entry.TaskID,
+				Payload:     entry.Payload,
+				Status:      TaskQueued,
+				Priority:    entry.Priority,
+				RequiredTag: entry.RequiredTag,
+				MaxRetries:  3,
+				seq:         s.nextSeq,
 			}
 		}
 
