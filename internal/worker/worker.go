@@ -56,8 +56,18 @@ type Worker struct {
 	// activeCount tracks in-flight executions for health telemetry.
 	activeCount atomic.Int32
 
+	// DialOpt specifies grpc.DialOption when connecting to schedulers (e.g. mTLS).
+	DialOpt grpc.DialOption
+
 	slotsOnce sync.Once
 	slots     chan struct{}
+}
+
+func (w *Worker) dialOpt() grpc.DialOption {
+	if w.DialOpt != nil {
+		return w.DialOpt
+	}
+	return grpc.WithTransportCredentials(insecure.NewCredentials())
 }
 
 // addrs returns every scheduler address this worker should talk to.
@@ -76,7 +86,7 @@ func (w *Worker) addrs() []string {
 func (w *Worker) callAny(callFn func(client pb.SchedulerServiceClient, ctx context.Context) error) error {
 	var errs []error
 	for _, addr := range w.addrs() {
-		conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		conn, err := grpc.NewClient(addr, w.dialOpt())
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -181,7 +191,7 @@ func (w *Worker) Register() error {
 }
 
 func (w *Worker) registerWith(addr string) error {
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(addr, w.dialOpt())
 	if err != nil {
 		return err
 	}
@@ -236,7 +246,7 @@ func (w *Worker) sendHeartbeat() {
 }
 
 func (w *Worker) heartbeatOne(addr string) {
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(addr, w.dialOpt())
 	if err != nil {
 		log.Printf("worker %s: heartbeat dial to %s failed: %v", w.ID, addr, err)
 		return
