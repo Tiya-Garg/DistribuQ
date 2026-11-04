@@ -2,6 +2,10 @@
 
 A fault-tolerant distributed task scheduler written in Go. Multiple scheduler replicas elect a leader via a Raft-inspired protocol; the leader replicates every task event (submit, assign, complete, fail) to followers before acknowledging it; workers heartbeat all replicas so whichever one wins the next election can dispatch immediately. Inter-node consensus, worker dispatch, and CLI communications are fully implemented with gRPC and Protocol Buffers.
 
+## Requirements
+
+- **Go 1.26+** (uses Go standard library, `google.golang.org/grpc`, and `google.golang.org/protobuf`)
+
 ## Architecture
 
 ```
