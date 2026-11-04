@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	pb "github.com/Tiya-Garg/DistribuQ/proto"
@@ -41,6 +42,9 @@ type Worker struct {
 	// it must be set for a worker to be able to rejoin on its own.
 	Addr string
 
+	// Tags is a list of capability groups (e.g. "gpu", "highmem") that this worker provides.
+	Tags []string
+
 	// MaxConcurrent caps how many tasks this worker executes at the
 	// same time; 0 (the default) means no cap. Tasks beyond the cap are
 	// still accepted and simply wait for a free slot. They are not
@@ -48,6 +52,9 @@ type Worker struct {
 	// scheduler side, so refusing work under load would burn retries
 	// and could permanently fail tasks that did nothing wrong.
 	MaxConcurrent int
+
+	// activeCount tracks in-flight executions for health telemetry.
+	activeCount atomic.Int32
 
 	slotsOnce sync.Once
 	slots     chan struct{}
@@ -93,6 +100,9 @@ func (w *Worker) callAny(callFn func(client pb.SchedulerServiceClient, ctx conte
 // result is reported over the network, so reporting never holds up
 // other tasks.
 func (w *Worker) runWithSlot(taskID, payload string) error {
+	w.activeCount.Add(1)
+	defer w.activeCount.Add(-1)
+
 	if w.MaxConcurrent > 0 {
 		w.slotsOnce.Do(func() { w.slots = make(chan struct{}, w.MaxConcurrent) })
 		w.slots <- struct{}{}
@@ -181,8 +191,21 @@ func (w *Worker) registerWith(addr string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	_, err = client.RegisterWorker(ctx, &pb.RegisterWorkerRequest{WorkerId: w.ID, Addr: w.Addr})
+	_, err = client.RegisterWorker(ctx, &pb.RegisterWorkerRequest{
+		WorkerId:      w.ID,
+		Addr:          w.Addr,
+		Tags:          w.Tags,
+		MaxConcurrent: int32(w.MaxConcurrent),
+	})
 	return err
+}
+
+// Drain notifies all schedulers that this worker is draining and shutting down.
+func (w *Worker) Drain() error {
+	return w.callAny(func(client pb.SchedulerServiceClient, ctx context.Context) error {
+		_, err := client.DrainWorker(ctx, &pb.DrainWorkerRequest{WorkerId: w.ID})
+		return err
+	})
 }
 
 // StartHeartbeatLoop periodically pings the scheduler so it knows this
@@ -222,7 +245,11 @@ func (w *Worker) heartbeatOne(addr string) {
 
 	client := pb.NewSchedulerServiceClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	_, err = client.Heartbeat(ctx, &pb.HeartbeatRequest{WorkerId: w.ID})
+	_, err = client.Heartbeat(ctx, &pb.HeartbeatRequest{
+		WorkerId:    w.ID,
+		ActiveTasks: w.activeCount.Load(),
+		CpuUsage:    0.0,
+	})
 	cancel()
 	if err == nil {
 		return
