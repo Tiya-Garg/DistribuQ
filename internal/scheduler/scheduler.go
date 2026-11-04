@@ -37,18 +37,19 @@ const (
 )
 
 type Task struct {
-	ID          string
-	Payload     string
-	Status      TaskStatus
-	WorkerID    string
-	Attempts    int
-	MaxRetries  int
-	Priority    int
-	RequiredTag string
-	LastError   string
-	NextRetryAt time.Time
-	RunAt       time.Time
-	DependsOn   []string
+	ID             string
+	Payload        string
+	Status         TaskStatus
+	WorkerID       string
+	Attempts       int
+	MaxRetries     int
+	Priority       int
+	RequiredTag    string
+	LastError      string
+	NextRetryAt    time.Time
+	RunAt          time.Time
+	DependsOn      []string
+	IdempotencyKey string
 
 	// seq is the task's submission order, used to dispatch tasks that
 	// were left queued in first-come, first-served order.
@@ -91,6 +92,9 @@ var (
 
 	// ErrCyclicDependency is returned when a task specifies dependencies that form a cycle.
 	ErrCyclicDependency = errors.New("scheduler: cyclic dependency detected in task DAG")
+
+	// ErrIdempotencyConflict is returned when an idempotency key is reused with a different payload.
+	ErrIdempotencyConflict = errors.New("scheduler: idempotency key already used with different payload")
 
 	// ErrNotLeader is returned by operations that require leadership when this
 	// replica is not the current Raft leader.
@@ -164,16 +168,20 @@ type Scheduler struct {
 
 	// proposer, if set, replicates task events across the Raft cluster before applying.
 	proposer RaftProposer
+
+	// idempotencyKeys maps an idempotency key to its corresponding task ID.
+	idempotencyKeys map[string]string
 }
 
 func NewScheduler(dispatchFn func(workerID, addr string, task *Task) error) *Scheduler {
 	return &Scheduler{
-		tasks:      make(map[string]*Task),
-		cronJobs:   make(map[string]*CronJob),
-		workers:    make(map[string]*WorkerInfo),
-		dispatchFn: dispatchFn,
-		kick:       make(chan struct{}, 1),
-		stopCh:     make(chan struct{}),
+		tasks:           make(map[string]*Task),
+		cronJobs:        make(map[string]*CronJob),
+		idempotencyKeys: make(map[string]string),
+		workers:         make(map[string]*WorkerInfo),
+		dispatchFn:      dispatchFn,
+		kick:            make(chan struct{}, 1),
+		stopCh:          make(chan struct{}),
 	}
 }
 
@@ -407,11 +415,30 @@ func (s *Scheduler) resolveDependenciesLocked() {
 
 // SubmitTaskDAG queues a task with dependencies (DAG), priority, capability tags, and optional scheduled execution time.
 func (s *Scheduler) SubmitTaskDAG(id, payload string, priority int, requiredTag string, runAt time.Time, dependsOn []string) (*Task, error) {
+	return s.SubmitTaskIdempotent(id, payload, priority, requiredTag, runAt, dependsOn, "")
+}
+
+// SubmitTaskIdempotent queues a task with optional DAG dependencies and an idempotency key.
+// If a task with the same idempotency key already exists, the existing task is returned without
+// creating a duplicate. If the key exists with a different payload, ErrIdempotencyConflict is returned.
+func (s *Scheduler) SubmitTaskIdempotent(id, payload string, priority int, requiredTag string, runAt time.Time, dependsOn []string, idempotencyKey string) (*Task, error) {
 	if id == "" {
 		return nil, ErrEmptyTaskID
 	}
 
 	s.mu.Lock()
+	if idempotencyKey != "" {
+		if existingID, ok := s.idempotencyKeys[idempotencyKey]; ok {
+			if existingTask, exists := s.tasks[existingID]; exists {
+				s.mu.Unlock()
+				if existingTask.Payload != payload {
+					return nil, ErrIdempotencyConflict
+				}
+				return existingTask, nil
+			}
+		}
+	}
+
 	if _, exists := s.tasks[id]; exists {
 		s.mu.Unlock()
 		return nil, ErrDuplicateTask
@@ -452,17 +479,21 @@ func (s *Scheduler) SubmitTaskDAG(id, payload string, priority int, requiredTag 
 	if proposer == nil {
 		s.nextSeq++
 		task := &Task{
-			ID:          id,
-			Payload:     payload,
-			Status:      status,
-			MaxRetries:  3,
-			Priority:    priority,
-			RequiredTag: requiredTag,
-			RunAt:       runAt,
-			DependsOn:   dependsOn,
-			seq:         s.nextSeq,
+			ID:             id,
+			Payload:        payload,
+			Status:         status,
+			MaxRetries:     3,
+			Priority:       priority,
+			RequiredTag:    requiredTag,
+			RunAt:          runAt,
+			DependsOn:      dependsOn,
+			IdempotencyKey: idempotencyKey,
+			seq:            s.nextSeq,
 		}
 		s.tasks[id] = task
+		if idempotencyKey != "" {
+			s.idempotencyKeys[idempotencyKey] = id
+		}
 		s.mu.Unlock()
 
 		if status == TaskQueued {
@@ -479,13 +510,14 @@ func (s *Scheduler) SubmitTaskDAG(id, payload string, priority int, requiredTag 
 	}
 
 	_, _, commitCh, err := proposer.Propose(raft.LogEntry{
-		Type:        raft.CmdSubmit,
-		TaskID:      id,
-		Payload:     payload,
-		Priority:    priority,
-		RequiredTag: requiredTag,
-		RunAtUnixMs: runAtUnixMs,
-		DependsOn:   dependsOn,
+		Type:           raft.CmdSubmit,
+		TaskID:         id,
+		Payload:        payload,
+		Priority:       priority,
+		RequiredTag:    requiredTag,
+		RunAtUnixMs:    runAtUnixMs,
+		DependsOn:      dependsOn,
+		IdempotencyKey: idempotencyKey,
 	})
 	if err != nil {
 		return nil, err
@@ -1279,18 +1311,19 @@ func (s *Scheduler) reapDeadWorkers() {
 
 // TaskView is a read-only representation of a task for the dashboard and status APIs.
 type TaskView struct {
-	ID          string     `json:"id"`
-	Payload     string     `json:"payload"`
-	Status      TaskStatus `json:"status"`
-	WorkerID    string     `json:"worker_id,omitempty"`
-	Attempts    int        `json:"attempts"`
-	MaxRetries  int        `json:"max_retries"`
-	Priority    int        `json:"priority"`
-	RequiredTag string     `json:"required_tag,omitempty"`
-	LastError   string     `json:"last_error,omitempty"`
-	RunAt       time.Time  `json:"run_at,omitempty"`
-	DependsOn   []string   `json:"depends_on,omitempty"`
-	Seq         uint64     `json:"seq"`
+	ID             string     `json:"id"`
+	Payload        string     `json:"payload"`
+	Status         TaskStatus `json:"status"`
+	WorkerID       string     `json:"worker_id,omitempty"`
+	Attempts       int        `json:"attempts"`
+	MaxRetries     int        `json:"max_retries"`
+	Priority       int        `json:"priority"`
+	RequiredTag    string     `json:"required_tag,omitempty"`
+	LastError      string     `json:"last_error,omitempty"`
+	RunAt          time.Time  `json:"run_at,omitempty"`
+	DependsOn      []string   `json:"depends_on,omitempty"`
+	IdempotencyKey string     `json:"idempotency_key,omitempty"`
+	Seq            uint64     `json:"seq"`
 }
 
 // WorkerView is a read-only representation of a worker for the dashboard and status APIs.
@@ -1313,18 +1346,19 @@ func (s *Scheduler) DetailedStatus() (tasks []TaskView, workers []WorkerView) {
 	tasks = make([]TaskView, 0, len(s.tasks))
 	for _, t := range s.tasks {
 		tasks = append(tasks, TaskView{
-			ID:          t.ID,
-			Payload:     t.Payload,
-			Status:      t.Status,
-			WorkerID:    t.WorkerID,
-			Attempts:    t.Attempts,
-			MaxRetries:  t.MaxRetries,
-			Priority:    t.Priority,
-			RequiredTag: t.RequiredTag,
-			LastError:   t.LastError,
-			RunAt:       t.RunAt,
-			DependsOn:   t.DependsOn,
-			Seq:         t.seq,
+			ID:             t.ID,
+			Payload:        t.Payload,
+			Status:         t.Status,
+			WorkerID:       t.WorkerID,
+			Attempts:       t.Attempts,
+			MaxRetries:     t.MaxRetries,
+			Priority:       t.Priority,
+			RequiredTag:    t.RequiredTag,
+			LastError:      t.LastError,
+			RunAt:          t.RunAt,
+			DependsOn:      t.DependsOn,
+			IdempotencyKey: t.IdempotencyKey,
+			Seq:            t.seq,
 		})
 	}
 
@@ -1359,24 +1393,26 @@ func (s *Scheduler) Snapshot() (tasks map[string]TaskStatus, workerCount int) {
 
 // TaskSnapshot holds the persistent state of one task in a snapshot.
 type TaskSnapshot struct {
-	ID          string     `json:"id"`
-	Payload     string     `json:"payload"`
-	Status      TaskStatus `json:"status"`
-	WorkerID    string     `json:"worker_id,omitempty"`
-	Attempts    int        `json:"attempts"`
-	MaxRetries  int        `json:"max_retries"`
-	Seq         uint64     `json:"seq"`
-	Priority    int        `json:"priority,omitempty"`
-	RequiredTag string     `json:"required_tag,omitempty"`
-	LastError   string     `json:"last_error,omitempty"`
-	RunAt       time.Time  `json:"run_at,omitempty"`
-	DependsOn   []string   `json:"depends_on,omitempty"`
+	ID             string     `json:"id"`
+	Payload        string     `json:"payload"`
+	Status         TaskStatus `json:"status"`
+	WorkerID       string     `json:"worker_id,omitempty"`
+	Attempts       int        `json:"attempts"`
+	MaxRetries     int        `json:"max_retries"`
+	Seq            uint64     `json:"seq"`
+	Priority       int        `json:"priority,omitempty"`
+	RequiredTag    string     `json:"required_tag,omitempty"`
+	LastError      string     `json:"last_error,omitempty"`
+	RunAt          time.Time  `json:"run_at,omitempty"`
+	DependsOn      []string   `json:"depends_on,omitempty"`
+	IdempotencyKey string     `json:"idempotency_key,omitempty"`
 }
 
 type schedulerSnapshotData struct {
-	Tasks    map[string]TaskSnapshot `json:"tasks"`
-	CronJobs map[string]*CronJob     `json:"cron_jobs,omitempty"`
-	NextSeq  uint64                  `json:"next_seq"`
+	Tasks           map[string]TaskSnapshot `json:"tasks"`
+	CronJobs        map[string]*CronJob     `json:"cron_jobs,omitempty"`
+	IdempotencyKeys map[string]string       `json:"idempotency_keys,omitempty"`
+	NextSeq         uint64                  `json:"next_seq"`
 }
 
 // EncodeState returns a serialized snapshot of all tasks and scheduler metadata.
@@ -1387,18 +1423,19 @@ func (s *Scheduler) EncodeState() ([]byte, error) {
 	tasks := make(map[string]TaskSnapshot, len(s.tasks))
 	for id, t := range s.tasks {
 		tasks[id] = TaskSnapshot{
-			ID:          t.ID,
-			Payload:     t.Payload,
-			Status:      t.Status,
-			WorkerID:    t.WorkerID,
-			Attempts:    t.Attempts,
-			MaxRetries:  t.MaxRetries,
-			Seq:         t.seq,
-			Priority:    t.Priority,
-			RequiredTag: t.RequiredTag,
-			LastError:   t.LastError,
-			RunAt:       t.RunAt,
-			DependsOn:   t.DependsOn,
+			ID:             t.ID,
+			Payload:        t.Payload,
+			Status:         t.Status,
+			WorkerID:       t.WorkerID,
+			Attempts:       t.Attempts,
+			MaxRetries:     t.MaxRetries,
+			Seq:            t.seq,
+			Priority:       t.Priority,
+			RequiredTag:    t.RequiredTag,
+			LastError:      t.LastError,
+			RunAt:          t.RunAt,
+			DependsOn:      t.DependsOn,
+			IdempotencyKey: t.IdempotencyKey,
 		}
 	}
 
@@ -1414,10 +1451,16 @@ func (s *Scheduler) EncodeState() ([]byte, error) {
 		}
 	}
 
+	idempotencyKeys := make(map[string]string, len(s.idempotencyKeys))
+	for k, v := range s.idempotencyKeys {
+		idempotencyKeys[k] = v
+	}
+
 	return json.Marshal(schedulerSnapshotData{
-		Tasks:    tasks,
-		CronJobs: cronJobs,
-		NextSeq:  s.nextSeq,
+		Tasks:           tasks,
+		CronJobs:        cronJobs,
+		IdempotencyKeys: idempotencyKeys,
+		NextSeq:         s.nextSeq,
 	})
 }
 
@@ -1437,20 +1480,26 @@ func (s *Scheduler) RestoreFromSnapshot(data []byte) error {
 	s.tasks = make(map[string]*Task, len(snap.Tasks))
 	for id, ts := range snap.Tasks {
 		s.tasks[id] = &Task{
-			ID:          ts.ID,
-			Payload:     ts.Payload,
-			Status:      ts.Status,
-			WorkerID:    ts.WorkerID,
-			Attempts:    ts.Attempts,
-			MaxRetries:  ts.MaxRetries,
-			Priority:    ts.Priority,
-			RequiredTag: ts.RequiredTag,
-			LastError:   ts.LastError,
-			RunAt:       ts.RunAt,
-			DependsOn:   ts.DependsOn,
-			seq:         ts.Seq,
-			tried:       make(map[string]bool),
+			ID:             ts.ID,
+			Payload:        ts.Payload,
+			Status:         ts.Status,
+			WorkerID:       ts.WorkerID,
+			Attempts:       ts.Attempts,
+			MaxRetries:     ts.MaxRetries,
+			Priority:       ts.Priority,
+			RequiredTag:    ts.RequiredTag,
+			LastError:      ts.LastError,
+			RunAt:          ts.RunAt,
+			DependsOn:      ts.DependsOn,
+			IdempotencyKey: ts.IdempotencyKey,
+			seq:            ts.Seq,
+			tried:          make(map[string]bool),
 		}
+	}
+
+	s.idempotencyKeys = make(map[string]string, len(snap.IdempotencyKeys))
+	for k, v := range snap.IdempotencyKeys {
+		s.idempotencyKeys[k] = v
 	}
 
 	s.cronJobs = make(map[string]*CronJob, len(snap.CronJobs))
@@ -1481,6 +1530,9 @@ func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
 
 	switch entry.Type {
 	case raft.CmdSubmit:
+		if entry.IdempotencyKey != "" {
+			s.idempotencyKeys[entry.IdempotencyKey] = entry.TaskID
+		}
 		if _, exists := s.tasks[entry.TaskID]; !exists {
 			s.nextSeq++
 			status := TaskQueued
@@ -1511,15 +1563,16 @@ func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
 				}
 			}
 			s.tasks[entry.TaskID] = &Task{
-				ID:          entry.TaskID,
-				Payload:     entry.Payload,
-				Status:      status,
-				Priority:    entry.Priority,
-				RequiredTag: entry.RequiredTag,
-				RunAt:       runAt,
-				DependsOn:   entry.DependsOn,
-				MaxRetries:  3,
-				seq:         s.nextSeq,
+				ID:             entry.TaskID,
+				Payload:        entry.Payload,
+				Status:         status,
+				Priority:       entry.Priority,
+				RequiredTag:    entry.RequiredTag,
+				RunAt:          runAt,
+				DependsOn:      entry.DependsOn,
+				IdempotencyKey: entry.IdempotencyKey,
+				MaxRetries:     3,
+				seq:            s.nextSeq,
 			}
 		}
 
@@ -1636,17 +1689,18 @@ func (s *Scheduler) GetDLQTasks() []TaskView {
 	for _, t := range s.tasks {
 		if t.Status == TaskDLQ {
 			dlq = append(dlq, TaskView{
-				ID:          t.ID,
-				Payload:     t.Payload,
-				Status:      t.Status,
-				WorkerID:    t.WorkerID,
-				Attempts:    t.Attempts,
-				MaxRetries:  t.MaxRetries,
-				Priority:    t.Priority,
-				RequiredTag: t.RequiredTag,
-				LastError:   t.LastError,
-				DependsOn:   t.DependsOn,
-				Seq:         t.seq,
+				ID:             t.ID,
+				Payload:        t.Payload,
+				Status:         t.Status,
+				WorkerID:       t.WorkerID,
+				Attempts:       t.Attempts,
+				MaxRetries:     t.MaxRetries,
+				Priority:       t.Priority,
+				RequiredTag:    t.RequiredTag,
+				LastError:      t.LastError,
+				DependsOn:      t.DependsOn,
+				IdempotencyKey: t.IdempotencyKey,
+				Seq:            t.seq,
 			})
 		}
 	}
