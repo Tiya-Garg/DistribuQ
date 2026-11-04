@@ -198,6 +198,7 @@ var RaftService_ServiceDesc = grpc.ServiceDesc{
 
 const (
 	SchedulerService_RegisterWorker_FullMethodName = "/distribuq.SchedulerService/RegisterWorker"
+	SchedulerService_DrainWorker_FullMethodName    = "/distribuq.SchedulerService/DrainWorker"
 	SchedulerService_Heartbeat_FullMethodName      = "/distribuq.SchedulerService/Heartbeat"
 	SchedulerService_SubmitTask_FullMethodName     = "/distribuq.SchedulerService/SubmitTask"
 	SchedulerService_CompleteTask_FullMethodName   = "/distribuq.SchedulerService/CompleteTask"
@@ -210,6 +211,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type SchedulerServiceClient interface {
 	RegisterWorker(ctx context.Context, in *RegisterWorkerRequest, opts ...grpc.CallOption) (*RegisterWorkerResponse, error)
+	DrainWorker(ctx context.Context, in *DrainWorkerRequest, opts ...grpc.CallOption) (*DrainWorkerResponse, error)
 	Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error)
 	SubmitTask(ctx context.Context, in *SubmitTaskRequest, opts ...grpc.CallOption) (*SubmitTaskResponse, error)
 	CompleteTask(ctx context.Context, in *CompleteTaskRequest, opts ...grpc.CallOption) (*CompleteTaskResponse, error)
@@ -229,6 +231,16 @@ func (c *schedulerServiceClient) RegisterWorker(ctx context.Context, in *Registe
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RegisterWorkerResponse)
 	err := c.cc.Invoke(ctx, SchedulerService_RegisterWorker_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *schedulerServiceClient) DrainWorker(ctx context.Context, in *DrainWorkerRequest, opts ...grpc.CallOption) (*DrainWorkerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DrainWorkerResponse)
+	err := c.cc.Invoke(ctx, SchedulerService_DrainWorker_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -290,6 +302,7 @@ func (c *schedulerServiceClient) GetStatus(ctx context.Context, in *GetStatusReq
 // for forward compatibility.
 type SchedulerServiceServer interface {
 	RegisterWorker(context.Context, *RegisterWorkerRequest) (*RegisterWorkerResponse, error)
+	DrainWorker(context.Context, *DrainWorkerRequest) (*DrainWorkerResponse, error)
 	Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error)
 	SubmitTask(context.Context, *SubmitTaskRequest) (*SubmitTaskResponse, error)
 	CompleteTask(context.Context, *CompleteTaskRequest) (*CompleteTaskResponse, error)
@@ -307,6 +320,9 @@ type UnimplementedSchedulerServiceServer struct{}
 
 func (UnimplementedSchedulerServiceServer) RegisterWorker(context.Context, *RegisterWorkerRequest) (*RegisterWorkerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RegisterWorker not implemented")
+}
+func (UnimplementedSchedulerServiceServer) DrainWorker(context.Context, *DrainWorkerRequest) (*DrainWorkerResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DrainWorker not implemented")
 }
 func (UnimplementedSchedulerServiceServer) Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Heartbeat not implemented")
@@ -358,6 +374,24 @@ func _SchedulerService_RegisterWorker_Handler(srv interface{}, ctx context.Conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(SchedulerServiceServer).RegisterWorker(ctx, req.(*RegisterWorkerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SchedulerService_DrainWorker_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DrainWorkerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SchedulerServiceServer).DrainWorker(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SchedulerService_DrainWorker_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SchedulerServiceServer).DrainWorker(ctx, req.(*DrainWorkerRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -462,6 +496,10 @@ var SchedulerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RegisterWorker",
 			Handler:    _SchedulerService_RegisterWorker_Handler,
+		},
+		{
+			MethodName: "DrainWorker",
+			Handler:    _SchedulerService_DrainWorker_Handler,
 		},
 		{
 			MethodName: "Heartbeat",
