@@ -31,6 +31,7 @@ type LogEntry struct {
 	WorkerId      string                 `protobuf:"bytes,6,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
 	Cause         string                 `protobuf:"bytes,7,opt,name=cause,proto3" json:"cause,omitempty"`
 	Priority      int32                  `protobuf:"varint,8,opt,name=priority,proto3" json:"priority,omitempty"`
+	RequiredTag   string                 `protobuf:"bytes,9,opt,name=required_tag,json=requiredTag,proto3" json:"required_tag,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -119,6 +120,13 @@ func (x *LogEntry) GetPriority() int32 {
 		return x.Priority
 	}
 	return 0
+}
+
+func (x *LogEntry) GetRequiredTag() string {
+	if x != nil {
+		return x.RequiredTag
+	}
+	return ""
 }
 
 type RequestVoteRequest struct {
@@ -525,6 +533,8 @@ type RegisterWorkerRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	WorkerId      string                 `protobuf:"bytes,1,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
 	Addr          string                 `protobuf:"bytes,2,opt,name=addr,proto3" json:"addr,omitempty"`
+	Tags          []string               `protobuf:"bytes,3,rep,name=tags,proto3" json:"tags,omitempty"`
+	MaxConcurrent int32                  `protobuf:"varint,4,opt,name=max_concurrent,json=maxConcurrent,proto3" json:"max_concurrent,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -571,6 +581,20 @@ func (x *RegisterWorkerRequest) GetAddr() string {
 		return x.Addr
 	}
 	return ""
+}
+
+func (x *RegisterWorkerRequest) GetTags() []string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+func (x *RegisterWorkerRequest) GetMaxConcurrent() int32 {
+	if x != nil {
+		return x.MaxConcurrent
+	}
+	return 0
 }
 
 type RegisterWorkerResponse struct {
@@ -620,6 +644,8 @@ func (x *RegisterWorkerResponse) GetOk() bool {
 type HeartbeatRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	WorkerId      string                 `protobuf:"bytes,1,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
+	ActiveTasks   int32                  `protobuf:"varint,2,opt,name=active_tasks,json=activeTasks,proto3" json:"active_tasks,omitempty"`
+	CpuUsage      float64                `protobuf:"fixed64,3,opt,name=cpu_usage,json=cpuUsage,proto3" json:"cpu_usage,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -659,6 +685,20 @@ func (x *HeartbeatRequest) GetWorkerId() string {
 		return x.WorkerId
 	}
 	return ""
+}
+
+func (x *HeartbeatRequest) GetActiveTasks() int32 {
+	if x != nil {
+		return x.ActiveTasks
+	}
+	return 0
+}
+
+func (x *HeartbeatRequest) GetCpuUsage() float64 {
+	if x != nil {
+		return x.CpuUsage
+	}
+	return 0
 }
 
 type HeartbeatResponse struct {
@@ -710,6 +750,7 @@ type SubmitTaskRequest struct {
 	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
 	Payload       string                 `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
 	Priority      int32                  `protobuf:"varint,3,opt,name=priority,proto3" json:"priority,omitempty"`
+	RequiredTag   string                 `protobuf:"bytes,4,opt,name=required_tag,json=requiredTag,proto3" json:"required_tag,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -763,6 +804,13 @@ func (x *SubmitTaskRequest) GetPriority() int32 {
 		return x.Priority
 	}
 	return 0
+}
+
+func (x *SubmitTaskRequest) GetRequiredTag() string {
+	if x != nil {
+		return x.RequiredTag
+	}
+	return ""
 }
 
 type SubmitTaskResponse struct {
@@ -1097,6 +1145,94 @@ func (x *GetStatusResponse) GetWorkerCount() int32 {
 	return 0
 }
 
+type DrainWorkerRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	WorkerId      string                 `protobuf:"bytes,1,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DrainWorkerRequest) Reset() {
+	*x = DrainWorkerRequest{}
+	mi := &file_proto_distribuq_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DrainWorkerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DrainWorkerRequest) ProtoMessage() {}
+
+func (x *DrainWorkerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_distribuq_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DrainWorkerRequest.ProtoReflect.Descriptor instead.
+func (*DrainWorkerRequest) Descriptor() ([]byte, []int) {
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *DrainWorkerRequest) GetWorkerId() string {
+	if x != nil {
+		return x.WorkerId
+	}
+	return ""
+}
+
+type DrainWorkerResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DrainWorkerResponse) Reset() {
+	*x = DrainWorkerResponse{}
+	mi := &file_proto_distribuq_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DrainWorkerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DrainWorkerResponse) ProtoMessage() {}
+
+func (x *DrainWorkerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_distribuq_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DrainWorkerResponse.ProtoReflect.Descriptor instead.
+func (*DrainWorkerResponse) Descriptor() ([]byte, []int) {
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *DrainWorkerResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
 type ExecuteTaskRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
@@ -1107,7 +1243,7 @@ type ExecuteTaskRequest struct {
 
 func (x *ExecuteTaskRequest) Reset() {
 	*x = ExecuteTaskRequest{}
-	mi := &file_proto_distribuq_proto_msgTypes[19]
+	mi := &file_proto_distribuq_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1119,7 +1255,7 @@ func (x *ExecuteTaskRequest) String() string {
 func (*ExecuteTaskRequest) ProtoMessage() {}
 
 func (x *ExecuteTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_distribuq_proto_msgTypes[19]
+	mi := &file_proto_distribuq_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1132,7 +1268,7 @@ func (x *ExecuteTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteTaskRequest.ProtoReflect.Descriptor instead.
 func (*ExecuteTaskRequest) Descriptor() ([]byte, []int) {
-	return file_proto_distribuq_proto_rawDescGZIP(), []int{19}
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ExecuteTaskRequest) GetTaskId() string {
@@ -1158,7 +1294,7 @@ type ExecuteTaskResponse struct {
 
 func (x *ExecuteTaskResponse) Reset() {
 	*x = ExecuteTaskResponse{}
-	mi := &file_proto_distribuq_proto_msgTypes[20]
+	mi := &file_proto_distribuq_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1170,7 +1306,7 @@ func (x *ExecuteTaskResponse) String() string {
 func (*ExecuteTaskResponse) ProtoMessage() {}
 
 func (x *ExecuteTaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_distribuq_proto_msgTypes[20]
+	mi := &file_proto_distribuq_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1183,7 +1319,7 @@ func (x *ExecuteTaskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteTaskResponse.ProtoReflect.Descriptor instead.
 func (*ExecuteTaskResponse) Descriptor() ([]byte, []int) {
-	return file_proto_distribuq_proto_rawDescGZIP(), []int{20}
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ExecuteTaskResponse) GetAccepted() bool {
@@ -1197,7 +1333,7 @@ var File_proto_distribuq_proto protoreflect.FileDescriptor
 
 const file_proto_distribuq_proto_rawDesc = "" +
 	"\n" +
-	"\x15proto/distribuq.proto\x12\tdistribuq\"\xca\x01\n" +
+	"\x15proto/distribuq.proto\x12\tdistribuq\"\xed\x01\n" +
 	"\bLogEntry\x12\x14\n" +
 	"\x05index\x18\x01 \x01(\x03R\x05index\x12\x12\n" +
 	"\x04term\x18\x02 \x01(\x03R\x04term\x12\x12\n" +
@@ -1206,7 +1342,8 @@ const file_proto_distribuq_proto_rawDesc = "" +
 	"\apayload\x18\x05 \x01(\tR\apayload\x12\x1b\n" +
 	"\tworker_id\x18\x06 \x01(\tR\bworkerId\x12\x14\n" +
 	"\x05cause\x18\a \x01(\tR\x05cause\x12\x1a\n" +
-	"\bpriority\x18\b \x01(\x05R\bpriority\"\x95\x01\n" +
+	"\bpriority\x18\b \x01(\x05R\bpriority\x12!\n" +
+	"\frequired_tag\x18\t \x01(\tR\vrequiredTag\"\x95\x01\n" +
 	"\x12RequestVoteRequest\x12\x12\n" +
 	"\x04term\x18\x01 \x01(\x03R\x04term\x12!\n" +
 	"\fcandidate_id\x18\x02 \x01(\tR\vcandidateId\x12$\n" +
@@ -1236,20 +1373,25 @@ const file_proto_distribuq_proto_rawDesc = "" +
 	"\x12last_included_term\x18\x04 \x01(\x03R\x10lastIncludedTerm\x12\x12\n" +
 	"\x04data\x18\x05 \x01(\fR\x04data\"-\n" +
 	"\x17InstallSnapshotResponse\x12\x12\n" +
-	"\x04term\x18\x01 \x01(\x03R\x04term\"H\n" +
+	"\x04term\x18\x01 \x01(\x03R\x04term\"\x83\x01\n" +
 	"\x15RegisterWorkerRequest\x12\x1b\n" +
 	"\tworker_id\x18\x01 \x01(\tR\bworkerId\x12\x12\n" +
-	"\x04addr\x18\x02 \x01(\tR\x04addr\"(\n" +
+	"\x04addr\x18\x02 \x01(\tR\x04addr\x12\x12\n" +
+	"\x04tags\x18\x03 \x03(\tR\x04tags\x12%\n" +
+	"\x0emax_concurrent\x18\x04 \x01(\x05R\rmaxConcurrent\"(\n" +
 	"\x16RegisterWorkerResponse\x12\x0e\n" +
-	"\x02ok\x18\x01 \x01(\bR\x02ok\"/\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\"o\n" +
 	"\x10HeartbeatRequest\x12\x1b\n" +
-	"\tworker_id\x18\x01 \x01(\tR\bworkerId\"#\n" +
+	"\tworker_id\x18\x01 \x01(\tR\bworkerId\x12!\n" +
+	"\factive_tasks\x18\x02 \x01(\x05R\vactiveTasks\x12\x1b\n" +
+	"\tcpu_usage\x18\x03 \x01(\x01R\bcpuUsage\"#\n" +
 	"\x11HeartbeatResponse\x12\x0e\n" +
-	"\x02ok\x18\x01 \x01(\bR\x02ok\"b\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\"\x85\x01\n" +
 	"\x11SubmitTaskRequest\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x18\n" +
 	"\apayload\x18\x02 \x01(\tR\apayload\x12\x1a\n" +
-	"\bpriority\x18\x03 \x01(\x05R\bpriority\"$\n" +
+	"\bpriority\x18\x03 \x01(\x05R\bpriority\x12!\n" +
+	"\frequired_tag\x18\x04 \x01(\tR\vrequiredTag\"$\n" +
 	"\x12SubmitTaskResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\"K\n" +
 	"\x13CompleteTaskRequest\x12\x17\n" +
@@ -1270,7 +1412,11 @@ const file_proto_distribuq_proto_rawDesc = "" +
 	"\n" +
 	"TasksEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"G\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"1\n" +
+	"\x12DrainWorkerRequest\x12\x1b\n" +
+	"\tworker_id\x18\x01 \x01(\tR\bworkerId\"%\n" +
+	"\x13DrainWorkerResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\"G\n" +
 	"\x12ExecuteTaskRequest\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x18\n" +
 	"\apayload\x18\x02 \x01(\tR\apayload\"1\n" +
@@ -1279,9 +1425,10 @@ const file_proto_distribuq_proto_rawDesc = "" +
 	"\vRaftService\x12L\n" +
 	"\vRequestVote\x12\x1d.distribuq.RequestVoteRequest\x1a\x1e.distribuq.RequestVoteResponse\x12R\n" +
 	"\rAppendEntries\x12\x1f.distribuq.AppendEntriesRequest\x1a .distribuq.AppendEntriesResponse\x12X\n" +
-	"\x0fInstallSnapshot\x12!.distribuq.InstallSnapshotRequest\x1a\".distribuq.InstallSnapshotResponse2\xda\x03\n" +
+	"\x0fInstallSnapshot\x12!.distribuq.InstallSnapshotRequest\x1a\".distribuq.InstallSnapshotResponse2\xa8\x04\n" +
 	"\x10SchedulerService\x12U\n" +
-	"\x0eRegisterWorker\x12 .distribuq.RegisterWorkerRequest\x1a!.distribuq.RegisterWorkerResponse\x12F\n" +
+	"\x0eRegisterWorker\x12 .distribuq.RegisterWorkerRequest\x1a!.distribuq.RegisterWorkerResponse\x12L\n" +
+	"\vDrainWorker\x12\x1d.distribuq.DrainWorkerRequest\x1a\x1e.distribuq.DrainWorkerResponse\x12F\n" +
 	"\tHeartbeat\x12\x1b.distribuq.HeartbeatRequest\x1a\x1c.distribuq.HeartbeatResponse\x12I\n" +
 	"\n" +
 	"SubmitTask\x12\x1c.distribuq.SubmitTaskRequest\x1a\x1d.distribuq.SubmitTaskResponse\x12O\n" +
@@ -1303,7 +1450,7 @@ func file_proto_distribuq_proto_rawDescGZIP() []byte {
 	return file_proto_distribuq_proto_rawDescData
 }
 
-var file_proto_distribuq_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
+var file_proto_distribuq_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_proto_distribuq_proto_goTypes = []any{
 	(*LogEntry)(nil),                // 0: distribuq.LogEntry
 	(*RequestVoteRequest)(nil),      // 1: distribuq.RequestVoteRequest
@@ -1324,35 +1471,39 @@ var file_proto_distribuq_proto_goTypes = []any{
 	(*FailTaskResponse)(nil),        // 16: distribuq.FailTaskResponse
 	(*GetStatusRequest)(nil),        // 17: distribuq.GetStatusRequest
 	(*GetStatusResponse)(nil),       // 18: distribuq.GetStatusResponse
-	(*ExecuteTaskRequest)(nil),      // 19: distribuq.ExecuteTaskRequest
-	(*ExecuteTaskResponse)(nil),     // 20: distribuq.ExecuteTaskResponse
-	nil,                             // 21: distribuq.GetStatusResponse.TasksEntry
+	(*DrainWorkerRequest)(nil),      // 19: distribuq.DrainWorkerRequest
+	(*DrainWorkerResponse)(nil),     // 20: distribuq.DrainWorkerResponse
+	(*ExecuteTaskRequest)(nil),      // 21: distribuq.ExecuteTaskRequest
+	(*ExecuteTaskResponse)(nil),     // 22: distribuq.ExecuteTaskResponse
+	nil,                             // 23: distribuq.GetStatusResponse.TasksEntry
 }
 var file_proto_distribuq_proto_depIdxs = []int32{
 	0,  // 0: distribuq.AppendEntriesRequest.entries:type_name -> distribuq.LogEntry
-	21, // 1: distribuq.GetStatusResponse.tasks:type_name -> distribuq.GetStatusResponse.TasksEntry
+	23, // 1: distribuq.GetStatusResponse.tasks:type_name -> distribuq.GetStatusResponse.TasksEntry
 	1,  // 2: distribuq.RaftService.RequestVote:input_type -> distribuq.RequestVoteRequest
 	3,  // 3: distribuq.RaftService.AppendEntries:input_type -> distribuq.AppendEntriesRequest
 	5,  // 4: distribuq.RaftService.InstallSnapshot:input_type -> distribuq.InstallSnapshotRequest
 	7,  // 5: distribuq.SchedulerService.RegisterWorker:input_type -> distribuq.RegisterWorkerRequest
-	9,  // 6: distribuq.SchedulerService.Heartbeat:input_type -> distribuq.HeartbeatRequest
-	11, // 7: distribuq.SchedulerService.SubmitTask:input_type -> distribuq.SubmitTaskRequest
-	13, // 8: distribuq.SchedulerService.CompleteTask:input_type -> distribuq.CompleteTaskRequest
-	15, // 9: distribuq.SchedulerService.FailTask:input_type -> distribuq.FailTaskRequest
-	17, // 10: distribuq.SchedulerService.GetStatus:input_type -> distribuq.GetStatusRequest
-	19, // 11: distribuq.WorkerService.ExecuteTask:input_type -> distribuq.ExecuteTaskRequest
-	2,  // 12: distribuq.RaftService.RequestVote:output_type -> distribuq.RequestVoteResponse
-	4,  // 13: distribuq.RaftService.AppendEntries:output_type -> distribuq.AppendEntriesResponse
-	6,  // 14: distribuq.RaftService.InstallSnapshot:output_type -> distribuq.InstallSnapshotResponse
-	8,  // 15: distribuq.SchedulerService.RegisterWorker:output_type -> distribuq.RegisterWorkerResponse
-	10, // 16: distribuq.SchedulerService.Heartbeat:output_type -> distribuq.HeartbeatResponse
-	12, // 17: distribuq.SchedulerService.SubmitTask:output_type -> distribuq.SubmitTaskResponse
-	14, // 18: distribuq.SchedulerService.CompleteTask:output_type -> distribuq.CompleteTaskResponse
-	16, // 19: distribuq.SchedulerService.FailTask:output_type -> distribuq.FailTaskResponse
-	18, // 20: distribuq.SchedulerService.GetStatus:output_type -> distribuq.GetStatusResponse
-	20, // 21: distribuq.WorkerService.ExecuteTask:output_type -> distribuq.ExecuteTaskResponse
-	12, // [12:22] is the sub-list for method output_type
-	2,  // [2:12] is the sub-list for method input_type
+	19, // 6: distribuq.SchedulerService.DrainWorker:input_type -> distribuq.DrainWorkerRequest
+	9,  // 7: distribuq.SchedulerService.Heartbeat:input_type -> distribuq.HeartbeatRequest
+	11, // 8: distribuq.SchedulerService.SubmitTask:input_type -> distribuq.SubmitTaskRequest
+	13, // 9: distribuq.SchedulerService.CompleteTask:input_type -> distribuq.CompleteTaskRequest
+	15, // 10: distribuq.SchedulerService.FailTask:input_type -> distribuq.FailTaskRequest
+	17, // 11: distribuq.SchedulerService.GetStatus:input_type -> distribuq.GetStatusRequest
+	21, // 12: distribuq.WorkerService.ExecuteTask:input_type -> distribuq.ExecuteTaskRequest
+	2,  // 13: distribuq.RaftService.RequestVote:output_type -> distribuq.RequestVoteResponse
+	4,  // 14: distribuq.RaftService.AppendEntries:output_type -> distribuq.AppendEntriesResponse
+	6,  // 15: distribuq.RaftService.InstallSnapshot:output_type -> distribuq.InstallSnapshotResponse
+	8,  // 16: distribuq.SchedulerService.RegisterWorker:output_type -> distribuq.RegisterWorkerResponse
+	20, // 17: distribuq.SchedulerService.DrainWorker:output_type -> distribuq.DrainWorkerResponse
+	10, // 18: distribuq.SchedulerService.Heartbeat:output_type -> distribuq.HeartbeatResponse
+	12, // 19: distribuq.SchedulerService.SubmitTask:output_type -> distribuq.SubmitTaskResponse
+	14, // 20: distribuq.SchedulerService.CompleteTask:output_type -> distribuq.CompleteTaskResponse
+	16, // 21: distribuq.SchedulerService.FailTask:output_type -> distribuq.FailTaskResponse
+	18, // 22: distribuq.SchedulerService.GetStatus:output_type -> distribuq.GetStatusResponse
+	22, // 23: distribuq.WorkerService.ExecuteTask:output_type -> distribuq.ExecuteTaskResponse
+	13, // [13:24] is the sub-list for method output_type
+	2,  // [2:13] is the sub-list for method input_type
 	2,  // [2:2] is the sub-list for extension type_name
 	2,  // [2:2] is the sub-list for extension extendee
 	0,  // [0:2] is the sub-list for field type_name
@@ -1369,7 +1520,7 @@ func file_proto_distribuq_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_distribuq_proto_rawDesc), len(file_proto_distribuq_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   22,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   3,
 		},
