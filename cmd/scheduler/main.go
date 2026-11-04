@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tiya-Garg/DistribuQ/internal/dashboard"
 	"github.com/Tiya-Garg/DistribuQ/internal/raft"
 	"github.com/Tiya-Garg/DistribuQ/internal/scheduler"
 	pb "github.com/Tiya-Garg/DistribuQ/proto"
@@ -24,6 +25,7 @@ import (
 func main() {
 	id := flag.String("id", "", "unique ID for this scheduler replica")
 	addr := flag.String("addr", ":8000", "address to listen on for RPC")
+	httpAddr := flag.String("http", "", "optional HTTP address to serve web dashboard and REST/SSE API (e.g. :8080)")
 	peersFlag := flag.String("peers", "", "comma-separated id=addr pairs for other scheduler replicas")
 	dataDir := flag.String("data-dir", "", "directory for durable Raft state (term and vote); empty keeps state in memory only")
 	flag.Parse()
@@ -121,6 +123,14 @@ func main() {
 	log.Printf("[%s] scheduler replica listening on %s", *id, *addr)
 
 	go node.Run()
+	if *httpAddr != "" {
+		dash := dashboard.NewServer(*httpAddr, node, sched)
+		if err := dash.Start(); err != nil {
+			log.Printf("[%s] warning: failed to start web dashboard on %s: %v", *id, *httpAddr, err)
+		} else {
+			log.Printf("[%s] web dashboard listening at http://%s", *id, *httpAddr)
+		}
+	}
 	if err := server.Serve(listener); err != nil {
 		log.Fatalf("scheduler server exited: %v", err)
 	}
