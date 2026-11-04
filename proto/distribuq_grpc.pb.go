@@ -201,6 +201,7 @@ const (
 	SchedulerService_DrainWorker_FullMethodName          = "/distribuq.SchedulerService/DrainWorker"
 	SchedulerService_Heartbeat_FullMethodName            = "/distribuq.SchedulerService/Heartbeat"
 	SchedulerService_SubmitTask_FullMethodName           = "/distribuq.SchedulerService/SubmitTask"
+	SchedulerService_CancelTask_FullMethodName           = "/distribuq.SchedulerService/CancelTask"
 	SchedulerService_CompleteTask_FullMethodName         = "/distribuq.SchedulerService/CompleteTask"
 	SchedulerService_FailTask_FullMethodName             = "/distribuq.SchedulerService/FailTask"
 	SchedulerService_GetStatus_FullMethodName            = "/distribuq.SchedulerService/GetStatus"
@@ -220,6 +221,7 @@ type SchedulerServiceClient interface {
 	DrainWorker(ctx context.Context, in *DrainWorkerRequest, opts ...grpc.CallOption) (*DrainWorkerResponse, error)
 	Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error)
 	SubmitTask(ctx context.Context, in *SubmitTaskRequest, opts ...grpc.CallOption) (*SubmitTaskResponse, error)
+	CancelTask(ctx context.Context, in *CancelTaskRequest, opts ...grpc.CallOption) (*CancelTaskResponse, error)
 	CompleteTask(ctx context.Context, in *CompleteTaskRequest, opts ...grpc.CallOption) (*CompleteTaskResponse, error)
 	FailTask(ctx context.Context, in *FailTaskRequest, opts ...grpc.CallOption) (*FailTaskResponse, error)
 	GetStatus(ctx context.Context, in *GetStatusRequest, opts ...grpc.CallOption) (*GetStatusResponse, error)
@@ -273,6 +275,16 @@ func (c *schedulerServiceClient) SubmitTask(ctx context.Context, in *SubmitTaskR
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SubmitTaskResponse)
 	err := c.cc.Invoke(ctx, SchedulerService_SubmitTask_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *schedulerServiceClient) CancelTask(ctx context.Context, in *CancelTaskRequest, opts ...grpc.CallOption) (*CancelTaskResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CancelTaskResponse)
+	err := c.cc.Invoke(ctx, SchedulerService_CancelTask_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -377,6 +389,7 @@ type SchedulerServiceServer interface {
 	DrainWorker(context.Context, *DrainWorkerRequest) (*DrainWorkerResponse, error)
 	Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error)
 	SubmitTask(context.Context, *SubmitTaskRequest) (*SubmitTaskResponse, error)
+	CancelTask(context.Context, *CancelTaskRequest) (*CancelTaskResponse, error)
 	CompleteTask(context.Context, *CompleteTaskRequest) (*CompleteTaskResponse, error)
 	FailTask(context.Context, *FailTaskRequest) (*FailTaskResponse, error)
 	GetStatus(context.Context, *GetStatusRequest) (*GetStatusResponse, error)
@@ -407,6 +420,9 @@ func (UnimplementedSchedulerServiceServer) Heartbeat(context.Context, *Heartbeat
 }
 func (UnimplementedSchedulerServiceServer) SubmitTask(context.Context, *SubmitTaskRequest) (*SubmitTaskResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SubmitTask not implemented")
+}
+func (UnimplementedSchedulerServiceServer) CancelTask(context.Context, *CancelTaskRequest) (*CancelTaskResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CancelTask not implemented")
 }
 func (UnimplementedSchedulerServiceServer) CompleteTask(context.Context, *CompleteTaskRequest) (*CompleteTaskResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CompleteTask not implemented")
@@ -524,6 +540,24 @@ func _SchedulerService_SubmitTask_Handler(srv interface{}, ctx context.Context, 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(SchedulerServiceServer).SubmitTask(ctx, req.(*SubmitTaskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SchedulerService_CancelTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelTaskRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SchedulerServiceServer).CancelTask(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SchedulerService_CancelTask_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SchedulerServiceServer).CancelTask(ctx, req.(*CancelTaskRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -714,6 +748,10 @@ var SchedulerService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _SchedulerService_SubmitTask_Handler,
 		},
 		{
+			MethodName: "CancelTask",
+			Handler:    _SchedulerService_CancelTask_Handler,
+		},
+		{
 			MethodName: "CompleteTask",
 			Handler:    _SchedulerService_CompleteTask_Handler,
 		},
@@ -756,6 +794,7 @@ var SchedulerService_ServiceDesc = grpc.ServiceDesc{
 
 const (
 	WorkerService_ExecuteTask_FullMethodName = "/distribuq.WorkerService/ExecuteTask"
+	WorkerService_AbortTask_FullMethodName   = "/distribuq.WorkerService/AbortTask"
 )
 
 // WorkerServiceClient is the client API for WorkerService service.
@@ -763,6 +802,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type WorkerServiceClient interface {
 	ExecuteTask(ctx context.Context, in *ExecuteTaskRequest, opts ...grpc.CallOption) (*ExecuteTaskResponse, error)
+	AbortTask(ctx context.Context, in *AbortTaskRequest, opts ...grpc.CallOption) (*AbortTaskResponse, error)
 }
 
 type workerServiceClient struct {
@@ -783,11 +823,22 @@ func (c *workerServiceClient) ExecuteTask(ctx context.Context, in *ExecuteTaskRe
 	return out, nil
 }
 
+func (c *workerServiceClient) AbortTask(ctx context.Context, in *AbortTaskRequest, opts ...grpc.CallOption) (*AbortTaskResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AbortTaskResponse)
+	err := c.cc.Invoke(ctx, WorkerService_AbortTask_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorkerServiceServer is the server API for WorkerService service.
 // All implementations must embed UnimplementedWorkerServiceServer
 // for forward compatibility.
 type WorkerServiceServer interface {
 	ExecuteTask(context.Context, *ExecuteTaskRequest) (*ExecuteTaskResponse, error)
+	AbortTask(context.Context, *AbortTaskRequest) (*AbortTaskResponse, error)
 	mustEmbedUnimplementedWorkerServiceServer()
 }
 
@@ -800,6 +851,9 @@ type UnimplementedWorkerServiceServer struct{}
 
 func (UnimplementedWorkerServiceServer) ExecuteTask(context.Context, *ExecuteTaskRequest) (*ExecuteTaskResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ExecuteTask not implemented")
+}
+func (UnimplementedWorkerServiceServer) AbortTask(context.Context, *AbortTaskRequest) (*AbortTaskResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AbortTask not implemented")
 }
 func (UnimplementedWorkerServiceServer) mustEmbedUnimplementedWorkerServiceServer() {}
 func (UnimplementedWorkerServiceServer) testEmbeddedByValue()                       {}
@@ -840,6 +894,24 @@ func _WorkerService_ExecuteTask_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorkerService_AbortTask_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AbortTaskRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkerServiceServer).AbortTask(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkerService_AbortTask_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkerServiceServer).AbortTask(ctx, req.(*AbortTaskRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorkerService_ServiceDesc is the grpc.ServiceDesc for WorkerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -850,6 +922,10 @@ var WorkerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ExecuteTask",
 			Handler:    _WorkerService_ExecuteTask_Handler,
+		},
+		{
+			MethodName: "AbortTask",
+			Handler:    _WorkerService_AbortTask_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

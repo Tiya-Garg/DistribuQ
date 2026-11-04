@@ -141,6 +141,22 @@ message DrainWorkerResponse {
   bool ok = 1;
 }
 
+message CancelTaskRequest {
+  string task_id = 1;
+}
+
+message CancelTaskResponse {
+  bool ok = 1;
+}
+
+message AbortTaskRequest {
+  string task_id = 1;
+}
+
+message AbortTaskResponse {
+  bool ok = 1;
+}
+
 enum TaskState {
   QUEUED = 0;
   ASSIGNED = 1;
@@ -149,6 +165,7 @@ enum TaskState {
   FAILED = 4;
   DLQ = 5;
   SCHEDULED = 6;
+  CANCELED = 7;
 }
 
 message TaskInfo {
@@ -215,6 +232,7 @@ service SchedulerService {
   rpc DrainWorker(DrainWorkerRequest) returns (DrainWorkerResponse);
   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
   rpc SubmitTask(SubmitTaskRequest) returns (SubmitTaskResponse);
+  rpc CancelTask(CancelTaskRequest) returns (CancelTaskResponse);
   rpc CompleteTask(CompleteTaskRequest) returns (CompleteTaskResponse);
   rpc FailTask(FailTaskRequest) returns (FailTaskResponse);
   rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
@@ -241,4 +259,5 @@ message ExecuteTaskResponse {
 
 service WorkerService {
   rpc ExecuteTask(ExecuteTaskRequest) returns (ExecuteTaskResponse);
+  rpc AbortTask(AbortTaskRequest) returns (AbortTaskResponse);
 }

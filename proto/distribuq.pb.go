@@ -31,6 +31,7 @@ const (
 	TaskState_FAILED    TaskState = 4
 	TaskState_DLQ       TaskState = 5
 	TaskState_SCHEDULED TaskState = 6
+	TaskState_CANCELED  TaskState = 7
 )
 
 // Enum value maps for TaskState.
@@ -43,6 +44,7 @@ var (
 		4: "FAILED",
 		5: "DLQ",
 		6: "SCHEDULED",
+		7: "CANCELED",
 	}
 	TaskState_value = map[string]int32{
 		"QUEUED":    0,
@@ -52,6 +54,7 @@ var (
 		"FAILED":    4,
 		"DLQ":       5,
 		"SCHEDULED": 6,
+		"CANCELED":  7,
 	}
 )
 
@@ -1326,6 +1329,182 @@ func (x *DrainWorkerResponse) GetOk() bool {
 	return false
 }
 
+type CancelTaskRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelTaskRequest) Reset() {
+	*x = CancelTaskRequest{}
+	mi := &file_proto_distribuq_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelTaskRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelTaskRequest) ProtoMessage() {}
+
+func (x *CancelTaskRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_distribuq_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelTaskRequest.ProtoReflect.Descriptor instead.
+func (*CancelTaskRequest) Descriptor() ([]byte, []int) {
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *CancelTaskRequest) GetTaskId() string {
+	if x != nil {
+		return x.TaskId
+	}
+	return ""
+}
+
+type CancelTaskResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelTaskResponse) Reset() {
+	*x = CancelTaskResponse{}
+	mi := &file_proto_distribuq_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelTaskResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelTaskResponse) ProtoMessage() {}
+
+func (x *CancelTaskResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_distribuq_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelTaskResponse.ProtoReflect.Descriptor instead.
+func (*CancelTaskResponse) Descriptor() ([]byte, []int) {
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *CancelTaskResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+type AbortTaskRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AbortTaskRequest) Reset() {
+	*x = AbortTaskRequest{}
+	mi := &file_proto_distribuq_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AbortTaskRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AbortTaskRequest) ProtoMessage() {}
+
+func (x *AbortTaskRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_distribuq_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AbortTaskRequest.ProtoReflect.Descriptor instead.
+func (*AbortTaskRequest) Descriptor() ([]byte, []int) {
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *AbortTaskRequest) GetTaskId() string {
+	if x != nil {
+		return x.TaskId
+	}
+	return ""
+}
+
+type AbortTaskResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AbortTaskResponse) Reset() {
+	*x = AbortTaskResponse{}
+	mi := &file_proto_distribuq_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AbortTaskResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AbortTaskResponse) ProtoMessage() {}
+
+func (x *AbortTaskResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_distribuq_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AbortTaskResponse.ProtoReflect.Descriptor instead.
+func (*AbortTaskResponse) Descriptor() ([]byte, []int) {
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *AbortTaskResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
 type TaskInfo struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -1344,7 +1523,7 @@ type TaskInfo struct {
 
 func (x *TaskInfo) Reset() {
 	*x = TaskInfo{}
-	mi := &file_proto_distribuq_proto_msgTypes[21]
+	mi := &file_proto_distribuq_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1356,7 +1535,7 @@ func (x *TaskInfo) String() string {
 func (*TaskInfo) ProtoMessage() {}
 
 func (x *TaskInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_distribuq_proto_msgTypes[21]
+	mi := &file_proto_distribuq_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1369,7 +1548,7 @@ func (x *TaskInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TaskInfo.ProtoReflect.Descriptor instead.
 func (*TaskInfo) Descriptor() ([]byte, []int) {
-	return file_proto_distribuq_proto_rawDescGZIP(), []int{21}
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *TaskInfo) GetId() string {
@@ -1451,7 +1630,7 @@ type ReplayDLQRequest struct {
 
 func (x *ReplayDLQRequest) Reset() {
 	*x = ReplayDLQRequest{}
-	mi := &file_proto_distribuq_proto_msgTypes[22]
+	mi := &file_proto_distribuq_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1463,7 +1642,7 @@ func (x *ReplayDLQRequest) String() string {
 func (*ReplayDLQRequest) ProtoMessage() {}
 
 func (x *ReplayDLQRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_distribuq_proto_msgTypes[22]
+	mi := &file_proto_distribuq_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1476,7 +1655,7 @@ func (x *ReplayDLQRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReplayDLQRequest.ProtoReflect.Descriptor instead.
 func (*ReplayDLQRequest) Descriptor() ([]byte, []int) {
-	return file_proto_distribuq_proto_rawDescGZIP(), []int{22}
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ReplayDLQRequest) GetTaskId() string {
@@ -1495,7 +1674,7 @@ type ReplayDLQResponse struct {
 
 func (x *ReplayDLQResponse) Reset() {
 	*x = ReplayDLQResponse{}
-	mi := &file_proto_distribuq_proto_msgTypes[23]
+	mi := &file_proto_distribuq_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1507,7 +1686,7 @@ func (x *ReplayDLQResponse) String() string {
 func (*ReplayDLQResponse) ProtoMessage() {}
 
 func (x *ReplayDLQResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_distribuq_proto_msgTypes[23]
+	mi := &file_proto_distribuq_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1520,7 +1699,7 @@ func (x *ReplayDLQResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReplayDLQResponse.ProtoReflect.Descriptor instead.
 func (*ReplayDLQResponse) Descriptor() ([]byte, []int) {
-	return file_proto_distribuq_proto_rawDescGZIP(), []int{23}
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ReplayDLQResponse) GetOk() bool {
@@ -1539,7 +1718,7 @@ type PurgeDLQRequest struct {
 
 func (x *PurgeDLQRequest) Reset() {
 	*x = PurgeDLQRequest{}
-	mi := &file_proto_distribuq_proto_msgTypes[24]
+	mi := &file_proto_distribuq_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1551,7 +1730,7 @@ func (x *PurgeDLQRequest) String() string {
 func (*PurgeDLQRequest) ProtoMessage() {}
 
 func (x *PurgeDLQRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_distribuq_proto_msgTypes[24]
+	mi := &file_proto_distribuq_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1564,7 +1743,7 @@ func (x *PurgeDLQRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PurgeDLQRequest.ProtoReflect.Descriptor instead.
 func (*PurgeDLQRequest) Descriptor() ([]byte, []int) {
-	return file_proto_distribuq_proto_rawDescGZIP(), []int{24}
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *PurgeDLQRequest) GetTaskId() string {
@@ -1583,7 +1762,7 @@ type PurgeDLQResponse struct {
 
 func (x *PurgeDLQResponse) Reset() {
 	*x = PurgeDLQResponse{}
-	mi := &file_proto_distribuq_proto_msgTypes[25]
+	mi := &file_proto_distribuq_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1595,7 +1774,7 @@ func (x *PurgeDLQResponse) String() string {
 func (*PurgeDLQResponse) ProtoMessage() {}
 
 func (x *PurgeDLQResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_distribuq_proto_msgTypes[25]
+	mi := &file_proto_distribuq_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1608,7 +1787,7 @@ func (x *PurgeDLQResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PurgeDLQResponse.ProtoReflect.Descriptor instead.
 func (*PurgeDLQResponse) Descriptor() ([]byte, []int) {
-	return file_proto_distribuq_proto_rawDescGZIP(), []int{25}
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *PurgeDLQResponse) GetOk() bool {
@@ -1626,7 +1805,7 @@ type GetDLQRequest struct {
 
 func (x *GetDLQRequest) Reset() {
 	*x = GetDLQRequest{}
-	mi := &file_proto_distribuq_proto_msgTypes[26]
+	mi := &file_proto_distribuq_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1638,7 +1817,7 @@ func (x *GetDLQRequest) String() string {
 func (*GetDLQRequest) ProtoMessage() {}
 
 func (x *GetDLQRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_distribuq_proto_msgTypes[26]
+	mi := &file_proto_distribuq_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1651,7 +1830,7 @@ func (x *GetDLQRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDLQRequest.ProtoReflect.Descriptor instead.
 func (*GetDLQRequest) Descriptor() ([]byte, []int) {
-	return file_proto_distribuq_proto_rawDescGZIP(), []int{26}
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{30}
 }
 
 type GetDLQResponse struct {
@@ -1663,7 +1842,7 @@ type GetDLQResponse struct {
 
 func (x *GetDLQResponse) Reset() {
 	*x = GetDLQResponse{}
-	mi := &file_proto_distribuq_proto_msgTypes[27]
+	mi := &file_proto_distribuq_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1675,7 +1854,7 @@ func (x *GetDLQResponse) String() string {
 func (*GetDLQResponse) ProtoMessage() {}
 
 func (x *GetDLQResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_distribuq_proto_msgTypes[27]
+	mi := &file_proto_distribuq_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1688,7 +1867,7 @@ func (x *GetDLQResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDLQResponse.ProtoReflect.Descriptor instead.
 func (*GetDLQResponse) Descriptor() ([]byte, []int) {
-	return file_proto_distribuq_proto_rawDescGZIP(), []int{27}
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *GetDLQResponse) GetTasks() []*TaskInfo {
@@ -1708,7 +1887,7 @@ type AddPeerRequest struct {
 
 func (x *AddPeerRequest) Reset() {
 	*x = AddPeerRequest{}
-	mi := &file_proto_distribuq_proto_msgTypes[28]
+	mi := &file_proto_distribuq_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1720,7 +1899,7 @@ func (x *AddPeerRequest) String() string {
 func (*AddPeerRequest) ProtoMessage() {}
 
 func (x *AddPeerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_distribuq_proto_msgTypes[28]
+	mi := &file_proto_distribuq_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1733,7 +1912,7 @@ func (x *AddPeerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddPeerRequest.ProtoReflect.Descriptor instead.
 func (*AddPeerRequest) Descriptor() ([]byte, []int) {
-	return file_proto_distribuq_proto_rawDescGZIP(), []int{28}
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *AddPeerRequest) GetPeerId() string {
@@ -1759,7 +1938,7 @@ type AddPeerResponse struct {
 
 func (x *AddPeerResponse) Reset() {
 	*x = AddPeerResponse{}
-	mi := &file_proto_distribuq_proto_msgTypes[29]
+	mi := &file_proto_distribuq_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1771,7 +1950,7 @@ func (x *AddPeerResponse) String() string {
 func (*AddPeerResponse) ProtoMessage() {}
 
 func (x *AddPeerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_distribuq_proto_msgTypes[29]
+	mi := &file_proto_distribuq_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1784,7 +1963,7 @@ func (x *AddPeerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddPeerResponse.ProtoReflect.Descriptor instead.
 func (*AddPeerResponse) Descriptor() ([]byte, []int) {
-	return file_proto_distribuq_proto_rawDescGZIP(), []int{29}
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *AddPeerResponse) GetOk() bool {
@@ -1803,7 +1982,7 @@ type RemovePeerRequest struct {
 
 func (x *RemovePeerRequest) Reset() {
 	*x = RemovePeerRequest{}
-	mi := &file_proto_distribuq_proto_msgTypes[30]
+	mi := &file_proto_distribuq_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1815,7 +1994,7 @@ func (x *RemovePeerRequest) String() string {
 func (*RemovePeerRequest) ProtoMessage() {}
 
 func (x *RemovePeerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_distribuq_proto_msgTypes[30]
+	mi := &file_proto_distribuq_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1828,7 +2007,7 @@ func (x *RemovePeerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemovePeerRequest.ProtoReflect.Descriptor instead.
 func (*RemovePeerRequest) Descriptor() ([]byte, []int) {
-	return file_proto_distribuq_proto_rawDescGZIP(), []int{30}
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *RemovePeerRequest) GetPeerId() string {
@@ -1847,7 +2026,7 @@ type RemovePeerResponse struct {
 
 func (x *RemovePeerResponse) Reset() {
 	*x = RemovePeerResponse{}
-	mi := &file_proto_distribuq_proto_msgTypes[31]
+	mi := &file_proto_distribuq_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1859,7 +2038,7 @@ func (x *RemovePeerResponse) String() string {
 func (*RemovePeerResponse) ProtoMessage() {}
 
 func (x *RemovePeerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_distribuq_proto_msgTypes[31]
+	mi := &file_proto_distribuq_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1872,7 +2051,7 @@ func (x *RemovePeerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemovePeerResponse.ProtoReflect.Descriptor instead.
 func (*RemovePeerResponse) Descriptor() ([]byte, []int) {
-	return file_proto_distribuq_proto_rawDescGZIP(), []int{31}
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *RemovePeerResponse) GetOk() bool {
@@ -1890,7 +2069,7 @@ type ClusterMembershipRequest struct {
 
 func (x *ClusterMembershipRequest) Reset() {
 	*x = ClusterMembershipRequest{}
-	mi := &file_proto_distribuq_proto_msgTypes[32]
+	mi := &file_proto_distribuq_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1902,7 +2081,7 @@ func (x *ClusterMembershipRequest) String() string {
 func (*ClusterMembershipRequest) ProtoMessage() {}
 
 func (x *ClusterMembershipRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_distribuq_proto_msgTypes[32]
+	mi := &file_proto_distribuq_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1915,7 +2094,7 @@ func (x *ClusterMembershipRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClusterMembershipRequest.ProtoReflect.Descriptor instead.
 func (*ClusterMembershipRequest) Descriptor() ([]byte, []int) {
-	return file_proto_distribuq_proto_rawDescGZIP(), []int{32}
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{36}
 }
 
 type ClusterMembershipResponse struct {
@@ -1928,7 +2107,7 @@ type ClusterMembershipResponse struct {
 
 func (x *ClusterMembershipResponse) Reset() {
 	*x = ClusterMembershipResponse{}
-	mi := &file_proto_distribuq_proto_msgTypes[33]
+	mi := &file_proto_distribuq_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1940,7 +2119,7 @@ func (x *ClusterMembershipResponse) String() string {
 func (*ClusterMembershipResponse) ProtoMessage() {}
 
 func (x *ClusterMembershipResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_distribuq_proto_msgTypes[33]
+	mi := &file_proto_distribuq_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1953,7 +2132,7 @@ func (x *ClusterMembershipResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClusterMembershipResponse.ProtoReflect.Descriptor instead.
 func (*ClusterMembershipResponse) Descriptor() ([]byte, []int) {
-	return file_proto_distribuq_proto_rawDescGZIP(), []int{33}
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *ClusterMembershipResponse) GetLeaderId() string {
@@ -1980,7 +2159,7 @@ type ExecuteTaskRequest struct {
 
 func (x *ExecuteTaskRequest) Reset() {
 	*x = ExecuteTaskRequest{}
-	mi := &file_proto_distribuq_proto_msgTypes[34]
+	mi := &file_proto_distribuq_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1992,7 +2171,7 @@ func (x *ExecuteTaskRequest) String() string {
 func (*ExecuteTaskRequest) ProtoMessage() {}
 
 func (x *ExecuteTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_distribuq_proto_msgTypes[34]
+	mi := &file_proto_distribuq_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2005,7 +2184,7 @@ func (x *ExecuteTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteTaskRequest.ProtoReflect.Descriptor instead.
 func (*ExecuteTaskRequest) Descriptor() ([]byte, []int) {
-	return file_proto_distribuq_proto_rawDescGZIP(), []int{34}
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *ExecuteTaskRequest) GetTaskId() string {
@@ -2031,7 +2210,7 @@ type ExecuteTaskResponse struct {
 
 func (x *ExecuteTaskResponse) Reset() {
 	*x = ExecuteTaskResponse{}
-	mi := &file_proto_distribuq_proto_msgTypes[35]
+	mi := &file_proto_distribuq_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2043,7 +2222,7 @@ func (x *ExecuteTaskResponse) String() string {
 func (*ExecuteTaskResponse) ProtoMessage() {}
 
 func (x *ExecuteTaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_distribuq_proto_msgTypes[35]
+	mi := &file_proto_distribuq_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2056,7 +2235,7 @@ func (x *ExecuteTaskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteTaskResponse.ProtoReflect.Descriptor instead.
 func (*ExecuteTaskResponse) Descriptor() ([]byte, []int) {
-	return file_proto_distribuq_proto_rawDescGZIP(), []int{35}
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *ExecuteTaskResponse) GetAccepted() bool {
@@ -2158,6 +2337,14 @@ const file_proto_distribuq_proto_rawDesc = "" +
 	"\x12DrainWorkerRequest\x12\x1b\n" +
 	"\tworker_id\x18\x01 \x01(\tR\bworkerId\"%\n" +
 	"\x13DrainWorkerResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\",\n" +
+	"\x11CancelTaskRequest\x12\x17\n" +
+	"\atask_id\x18\x01 \x01(\tR\x06taskId\"$\n" +
+	"\x12CancelTaskResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\"+\n" +
+	"\x10AbortTaskRequest\x12\x17\n" +
+	"\atask_id\x18\x01 \x01(\tR\x06taskId\"#\n" +
+	"\x11AbortTaskResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\"\xa9\x02\n" +
 	"\bTaskInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
@@ -2201,7 +2388,7 @@ const file_proto_distribuq_proto_rawDesc = "" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x18\n" +
 	"\apayload\x18\x02 \x01(\tR\apayload\"1\n" +
 	"\x13ExecuteTaskResponse\x12\x1a\n" +
-	"\baccepted\x18\x01 \x01(\bR\baccepted*e\n" +
+	"\baccepted\x18\x01 \x01(\bR\baccepted*s\n" +
 	"\tTaskState\x12\n" +
 	"\n" +
 	"\x06QUEUED\x10\x00\x12\f\n" +
@@ -2211,17 +2398,20 @@ const file_proto_distribuq_proto_rawDesc = "" +
 	"\n" +
 	"\x06FAILED\x10\x04\x12\a\n" +
 	"\x03DLQ\x10\x05\x12\r\n" +
-	"\tSCHEDULED\x10\x062\x89\x02\n" +
+	"\tSCHEDULED\x10\x06\x12\f\n" +
+	"\bCANCELED\x10\a2\x89\x02\n" +
 	"\vRaftService\x12L\n" +
 	"\vRequestVote\x12\x1d.distribuq.RequestVoteRequest\x1a\x1e.distribuq.RequestVoteResponse\x12R\n" +
 	"\rAppendEntries\x12\x1f.distribuq.AppendEntriesRequest\x1a .distribuq.AppendEntriesResponse\x12X\n" +
-	"\x0fInstallSnapshot\x12!.distribuq.InstallSnapshotRequest\x1a\".distribuq.InstallSnapshotResponse2\xe4\a\n" +
+	"\x0fInstallSnapshot\x12!.distribuq.InstallSnapshotRequest\x1a\".distribuq.InstallSnapshotResponse2\xaf\b\n" +
 	"\x10SchedulerService\x12U\n" +
 	"\x0eRegisterWorker\x12 .distribuq.RegisterWorkerRequest\x1a!.distribuq.RegisterWorkerResponse\x12L\n" +
 	"\vDrainWorker\x12\x1d.distribuq.DrainWorkerRequest\x1a\x1e.distribuq.DrainWorkerResponse\x12F\n" +
 	"\tHeartbeat\x12\x1b.distribuq.HeartbeatRequest\x1a\x1c.distribuq.HeartbeatResponse\x12I\n" +
 	"\n" +
-	"SubmitTask\x12\x1c.distribuq.SubmitTaskRequest\x1a\x1d.distribuq.SubmitTaskResponse\x12O\n" +
+	"SubmitTask\x12\x1c.distribuq.SubmitTaskRequest\x1a\x1d.distribuq.SubmitTaskResponse\x12I\n" +
+	"\n" +
+	"CancelTask\x12\x1c.distribuq.CancelTaskRequest\x1a\x1d.distribuq.CancelTaskResponse\x12O\n" +
 	"\fCompleteTask\x12\x1e.distribuq.CompleteTaskRequest\x1a\x1f.distribuq.CompleteTaskResponse\x12C\n" +
 	"\bFailTask\x12\x1a.distribuq.FailTaskRequest\x1a\x1b.distribuq.FailTaskResponse\x12F\n" +
 	"\tGetStatus\x12\x1b.distribuq.GetStatusRequest\x1a\x1c.distribuq.GetStatusResponse\x12=\n" +
@@ -2231,9 +2421,10 @@ const file_proto_distribuq_proto_rawDesc = "" +
 	"\aAddPeer\x12\x19.distribuq.AddPeerRequest\x1a\x1a.distribuq.AddPeerResponse\x12I\n" +
 	"\n" +
 	"RemovePeer\x12\x1c.distribuq.RemovePeerRequest\x1a\x1d.distribuq.RemovePeerResponse\x12a\n" +
-	"\x14GetClusterMembership\x12#.distribuq.ClusterMembershipRequest\x1a$.distribuq.ClusterMembershipResponse2]\n" +
+	"\x14GetClusterMembership\x12#.distribuq.ClusterMembershipRequest\x1a$.distribuq.ClusterMembershipResponse2\xa5\x01\n" +
 	"\rWorkerService\x12L\n" +
-	"\vExecuteTask\x12\x1d.distribuq.ExecuteTaskRequest\x1a\x1e.distribuq.ExecuteTaskResponseB0Z.github.com/Tiya-Garg/DistribuQ/proto;distribuqb\x06proto3"
+	"\vExecuteTask\x12\x1d.distribuq.ExecuteTaskRequest\x1a\x1e.distribuq.ExecuteTaskResponse\x12F\n" +
+	"\tAbortTask\x12\x1b.distribuq.AbortTaskRequest\x1a\x1c.distribuq.AbortTaskResponseB0Z.github.com/Tiya-Garg/DistribuQ/proto;distribuqb\x06proto3"
 
 var (
 	file_proto_distribuq_proto_rawDescOnce sync.Once
@@ -2248,7 +2439,7 @@ func file_proto_distribuq_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_distribuq_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_proto_distribuq_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
+var file_proto_distribuq_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
 var file_proto_distribuq_proto_goTypes = []any{
 	(TaskState)(0),                    // 0: distribuq.TaskState
 	(*LogEntry)(nil),                  // 1: distribuq.LogEntry
@@ -2272,27 +2463,31 @@ var file_proto_distribuq_proto_goTypes = []any{
 	(*GetStatusResponse)(nil),         // 19: distribuq.GetStatusResponse
 	(*DrainWorkerRequest)(nil),        // 20: distribuq.DrainWorkerRequest
 	(*DrainWorkerResponse)(nil),       // 21: distribuq.DrainWorkerResponse
-	(*TaskInfo)(nil),                  // 22: distribuq.TaskInfo
-	(*ReplayDLQRequest)(nil),          // 23: distribuq.ReplayDLQRequest
-	(*ReplayDLQResponse)(nil),         // 24: distribuq.ReplayDLQResponse
-	(*PurgeDLQRequest)(nil),           // 25: distribuq.PurgeDLQRequest
-	(*PurgeDLQResponse)(nil),          // 26: distribuq.PurgeDLQResponse
-	(*GetDLQRequest)(nil),             // 27: distribuq.GetDLQRequest
-	(*GetDLQResponse)(nil),            // 28: distribuq.GetDLQResponse
-	(*AddPeerRequest)(nil),            // 29: distribuq.AddPeerRequest
-	(*AddPeerResponse)(nil),           // 30: distribuq.AddPeerResponse
-	(*RemovePeerRequest)(nil),         // 31: distribuq.RemovePeerRequest
-	(*RemovePeerResponse)(nil),        // 32: distribuq.RemovePeerResponse
-	(*ClusterMembershipRequest)(nil),  // 33: distribuq.ClusterMembershipRequest
-	(*ClusterMembershipResponse)(nil), // 34: distribuq.ClusterMembershipResponse
-	(*ExecuteTaskRequest)(nil),        // 35: distribuq.ExecuteTaskRequest
-	(*ExecuteTaskResponse)(nil),       // 36: distribuq.ExecuteTaskResponse
-	nil,                               // 37: distribuq.GetStatusResponse.TasksEntry
+	(*CancelTaskRequest)(nil),         // 22: distribuq.CancelTaskRequest
+	(*CancelTaskResponse)(nil),        // 23: distribuq.CancelTaskResponse
+	(*AbortTaskRequest)(nil),          // 24: distribuq.AbortTaskRequest
+	(*AbortTaskResponse)(nil),         // 25: distribuq.AbortTaskResponse
+	(*TaskInfo)(nil),                  // 26: distribuq.TaskInfo
+	(*ReplayDLQRequest)(nil),          // 27: distribuq.ReplayDLQRequest
+	(*ReplayDLQResponse)(nil),         // 28: distribuq.ReplayDLQResponse
+	(*PurgeDLQRequest)(nil),           // 29: distribuq.PurgeDLQRequest
+	(*PurgeDLQResponse)(nil),          // 30: distribuq.PurgeDLQResponse
+	(*GetDLQRequest)(nil),             // 31: distribuq.GetDLQRequest
+	(*GetDLQResponse)(nil),            // 32: distribuq.GetDLQResponse
+	(*AddPeerRequest)(nil),            // 33: distribuq.AddPeerRequest
+	(*AddPeerResponse)(nil),           // 34: distribuq.AddPeerResponse
+	(*RemovePeerRequest)(nil),         // 35: distribuq.RemovePeerRequest
+	(*RemovePeerResponse)(nil),        // 36: distribuq.RemovePeerResponse
+	(*ClusterMembershipRequest)(nil),  // 37: distribuq.ClusterMembershipRequest
+	(*ClusterMembershipResponse)(nil), // 38: distribuq.ClusterMembershipResponse
+	(*ExecuteTaskRequest)(nil),        // 39: distribuq.ExecuteTaskRequest
+	(*ExecuteTaskResponse)(nil),       // 40: distribuq.ExecuteTaskResponse
+	nil,                               // 41: distribuq.GetStatusResponse.TasksEntry
 }
 var file_proto_distribuq_proto_depIdxs = []int32{
 	1,  // 0: distribuq.AppendEntriesRequest.entries:type_name -> distribuq.LogEntry
-	37, // 1: distribuq.GetStatusResponse.tasks:type_name -> distribuq.GetStatusResponse.TasksEntry
-	22, // 2: distribuq.GetDLQResponse.tasks:type_name -> distribuq.TaskInfo
+	41, // 1: distribuq.GetStatusResponse.tasks:type_name -> distribuq.GetStatusResponse.TasksEntry
+	26, // 2: distribuq.GetDLQResponse.tasks:type_name -> distribuq.TaskInfo
 	2,  // 3: distribuq.RaftService.RequestVote:input_type -> distribuq.RequestVoteRequest
 	4,  // 4: distribuq.RaftService.AppendEntries:input_type -> distribuq.AppendEntriesRequest
 	6,  // 5: distribuq.RaftService.InstallSnapshot:input_type -> distribuq.InstallSnapshotRequest
@@ -2300,35 +2495,39 @@ var file_proto_distribuq_proto_depIdxs = []int32{
 	20, // 7: distribuq.SchedulerService.DrainWorker:input_type -> distribuq.DrainWorkerRequest
 	10, // 8: distribuq.SchedulerService.Heartbeat:input_type -> distribuq.HeartbeatRequest
 	12, // 9: distribuq.SchedulerService.SubmitTask:input_type -> distribuq.SubmitTaskRequest
-	14, // 10: distribuq.SchedulerService.CompleteTask:input_type -> distribuq.CompleteTaskRequest
-	16, // 11: distribuq.SchedulerService.FailTask:input_type -> distribuq.FailTaskRequest
-	18, // 12: distribuq.SchedulerService.GetStatus:input_type -> distribuq.GetStatusRequest
-	27, // 13: distribuq.SchedulerService.GetDLQ:input_type -> distribuq.GetDLQRequest
-	23, // 14: distribuq.SchedulerService.ReplayDLQ:input_type -> distribuq.ReplayDLQRequest
-	25, // 15: distribuq.SchedulerService.PurgeDLQ:input_type -> distribuq.PurgeDLQRequest
-	29, // 16: distribuq.SchedulerService.AddPeer:input_type -> distribuq.AddPeerRequest
-	31, // 17: distribuq.SchedulerService.RemovePeer:input_type -> distribuq.RemovePeerRequest
-	33, // 18: distribuq.SchedulerService.GetClusterMembership:input_type -> distribuq.ClusterMembershipRequest
-	35, // 19: distribuq.WorkerService.ExecuteTask:input_type -> distribuq.ExecuteTaskRequest
-	3,  // 20: distribuq.RaftService.RequestVote:output_type -> distribuq.RequestVoteResponse
-	5,  // 21: distribuq.RaftService.AppendEntries:output_type -> distribuq.AppendEntriesResponse
-	7,  // 22: distribuq.RaftService.InstallSnapshot:output_type -> distribuq.InstallSnapshotResponse
-	9,  // 23: distribuq.SchedulerService.RegisterWorker:output_type -> distribuq.RegisterWorkerResponse
-	21, // 24: distribuq.SchedulerService.DrainWorker:output_type -> distribuq.DrainWorkerResponse
-	11, // 25: distribuq.SchedulerService.Heartbeat:output_type -> distribuq.HeartbeatResponse
-	13, // 26: distribuq.SchedulerService.SubmitTask:output_type -> distribuq.SubmitTaskResponse
-	15, // 27: distribuq.SchedulerService.CompleteTask:output_type -> distribuq.CompleteTaskResponse
-	17, // 28: distribuq.SchedulerService.FailTask:output_type -> distribuq.FailTaskResponse
-	19, // 29: distribuq.SchedulerService.GetStatus:output_type -> distribuq.GetStatusResponse
-	28, // 30: distribuq.SchedulerService.GetDLQ:output_type -> distribuq.GetDLQResponse
-	24, // 31: distribuq.SchedulerService.ReplayDLQ:output_type -> distribuq.ReplayDLQResponse
-	26, // 32: distribuq.SchedulerService.PurgeDLQ:output_type -> distribuq.PurgeDLQResponse
-	30, // 33: distribuq.SchedulerService.AddPeer:output_type -> distribuq.AddPeerResponse
-	32, // 34: distribuq.SchedulerService.RemovePeer:output_type -> distribuq.RemovePeerResponse
-	34, // 35: distribuq.SchedulerService.GetClusterMembership:output_type -> distribuq.ClusterMembershipResponse
-	36, // 36: distribuq.WorkerService.ExecuteTask:output_type -> distribuq.ExecuteTaskResponse
-	20, // [20:37] is the sub-list for method output_type
-	3,  // [3:20] is the sub-list for method input_type
+	22, // 10: distribuq.SchedulerService.CancelTask:input_type -> distribuq.CancelTaskRequest
+	14, // 11: distribuq.SchedulerService.CompleteTask:input_type -> distribuq.CompleteTaskRequest
+	16, // 12: distribuq.SchedulerService.FailTask:input_type -> distribuq.FailTaskRequest
+	18, // 13: distribuq.SchedulerService.GetStatus:input_type -> distribuq.GetStatusRequest
+	31, // 14: distribuq.SchedulerService.GetDLQ:input_type -> distribuq.GetDLQRequest
+	27, // 15: distribuq.SchedulerService.ReplayDLQ:input_type -> distribuq.ReplayDLQRequest
+	29, // 16: distribuq.SchedulerService.PurgeDLQ:input_type -> distribuq.PurgeDLQRequest
+	33, // 17: distribuq.SchedulerService.AddPeer:input_type -> distribuq.AddPeerRequest
+	35, // 18: distribuq.SchedulerService.RemovePeer:input_type -> distribuq.RemovePeerRequest
+	37, // 19: distribuq.SchedulerService.GetClusterMembership:input_type -> distribuq.ClusterMembershipRequest
+	39, // 20: distribuq.WorkerService.ExecuteTask:input_type -> distribuq.ExecuteTaskRequest
+	24, // 21: distribuq.WorkerService.AbortTask:input_type -> distribuq.AbortTaskRequest
+	3,  // 22: distribuq.RaftService.RequestVote:output_type -> distribuq.RequestVoteResponse
+	5,  // 23: distribuq.RaftService.AppendEntries:output_type -> distribuq.AppendEntriesResponse
+	7,  // 24: distribuq.RaftService.InstallSnapshot:output_type -> distribuq.InstallSnapshotResponse
+	9,  // 25: distribuq.SchedulerService.RegisterWorker:output_type -> distribuq.RegisterWorkerResponse
+	21, // 26: distribuq.SchedulerService.DrainWorker:output_type -> distribuq.DrainWorkerResponse
+	11, // 27: distribuq.SchedulerService.Heartbeat:output_type -> distribuq.HeartbeatResponse
+	13, // 28: distribuq.SchedulerService.SubmitTask:output_type -> distribuq.SubmitTaskResponse
+	23, // 29: distribuq.SchedulerService.CancelTask:output_type -> distribuq.CancelTaskResponse
+	15, // 30: distribuq.SchedulerService.CompleteTask:output_type -> distribuq.CompleteTaskResponse
+	17, // 31: distribuq.SchedulerService.FailTask:output_type -> distribuq.FailTaskResponse
+	19, // 32: distribuq.SchedulerService.GetStatus:output_type -> distribuq.GetStatusResponse
+	32, // 33: distribuq.SchedulerService.GetDLQ:output_type -> distribuq.GetDLQResponse
+	28, // 34: distribuq.SchedulerService.ReplayDLQ:output_type -> distribuq.ReplayDLQResponse
+	30, // 35: distribuq.SchedulerService.PurgeDLQ:output_type -> distribuq.PurgeDLQResponse
+	34, // 36: distribuq.SchedulerService.AddPeer:output_type -> distribuq.AddPeerResponse
+	36, // 37: distribuq.SchedulerService.RemovePeer:output_type -> distribuq.RemovePeerResponse
+	38, // 38: distribuq.SchedulerService.GetClusterMembership:output_type -> distribuq.ClusterMembershipResponse
+	40, // 39: distribuq.WorkerService.ExecuteTask:output_type -> distribuq.ExecuteTaskResponse
+	25, // 40: distribuq.WorkerService.AbortTask:output_type -> distribuq.AbortTaskResponse
+	22, // [22:41] is the sub-list for method output_type
+	3,  // [3:22] is the sub-list for method input_type
 	3,  // [3:3] is the sub-list for extension type_name
 	3,  // [3:3] is the sub-list for extension extendee
 	0,  // [0:3] is the sub-list for field type_name
@@ -2345,7 +2544,7 @@ func file_proto_distribuq_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_distribuq_proto_rawDesc), len(file_proto_distribuq_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   37,
+			NumMessages:   41,
 			NumExtensions: 0,
 			NumServices:   3,
 		},
