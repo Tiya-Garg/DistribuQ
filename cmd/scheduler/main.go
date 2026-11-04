@@ -28,6 +28,7 @@ func main() {
 	httpAddr := flag.String("http", "", "optional HTTP address to serve web dashboard and REST/SSE API (e.g. :8080)")
 	peersFlag := flag.String("peers", "", "comma-separated id=addr pairs for other scheduler replicas")
 	dataDir := flag.String("data-dir", "", "directory for durable Raft state (term, vote, replicated log, and snapshots); empty keeps state in memory only")
+	useWAL := flag.Bool("use-wal", true, "use append-only Write-Ahead Log (WAL) engine for durable storage instead of single JSON rewrite")
 	caCert := flag.String("ca-cert", "", "path to CA root certificate for mTLS")
 	tlsCert := flag.String("tls-cert", "", "path to server/client TLS certificate for mTLS")
 	tlsKey := flag.String("tls-key", "", "path to TLS private key for mTLS")
@@ -103,9 +104,21 @@ func main() {
 		}
 	})
 	if *dataDir != "" {
-		statePath := filepath.Join(*dataDir, *id+".raft.json")
-		if err := node.SetPersister(raft.NewFilePersister(statePath)); err != nil {
-			log.Fatalf("failed to restore raft state from %s: %v", statePath, err)
+		var persister raft.Persister
+		if *useWAL {
+			walP, err := raft.NewWALPersister(*dataDir, *id)
+			if err != nil {
+				log.Fatalf("failed to initialize WAL persister: %v", err)
+			}
+			defer walP.Close()
+			persister = walP
+		} else {
+			statePath := filepath.Join(*dataDir, *id+".raft.json")
+			persister = raft.NewFilePersister(statePath)
+		}
+
+		if err := node.SetPersister(persister); err != nil {
+			log.Fatalf("failed to restore raft state: %v", err)
 		}
 		if snapData := node.SnapshotData(); len(snapData) > 0 {
 			if err := sched.RestoreFromSnapshot(snapData); err != nil {
@@ -115,7 +128,7 @@ func main() {
 		for _, entry := range node.Log() {
 			sched.ApplyEntry(entry)
 		}
-		log.Printf("[%s] raft state at %s (restored term %d, last index %d, snapshot index %d)", *id, statePath, node.Term(), node.LastLogIndex(), node.LastIncludedIndex())
+		log.Printf("[%s] raft state initialized (restored term %d, last index %d, snapshot index %d, wal=%v)", *id, node.Term(), node.LastLogIndex(), node.LastIncludedIndex(), *useWAL)
 	}
 	node.OnBecomeLeader(func() {
 		log.Printf("[%s] elected LEADER (term %d) -- now accepting task submissions", *id, node.Term())
