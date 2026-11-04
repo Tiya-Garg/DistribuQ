@@ -25,11 +25,11 @@ func truncateCause(cause string) string {
 // GRPCSchedulerServer implements pb.SchedulerServiceServer to serve scheduler RPCs over gRPC.
 type GRPCSchedulerServer struct {
 	pb.UnimplementedSchedulerServiceServer
-	S          *Scheduler
-	IsLeader   func() bool
-	AddPeer    func(peerID, peerAddr string) error
-	RemovePeer func(peerID string) error
-	GetPeers   func() (leaderID string, peers []string)
+	S            *Scheduler
+	IsLeader     func() bool
+	AddPeerFn    func(peerID, peerAddr string) error
+	RemovePeerFn func(peerID string) error
+	GetPeersFn   func() (leaderID string, peers []string)
 }
 
 func (s *GRPCSchedulerServer) requireLeader() bool {
@@ -171,10 +171,10 @@ func (s *GRPCSchedulerServer) AddPeer(ctx context.Context, req *pb.AddPeerReques
 	if !s.requireLeader() {
 		return nil, status.Error(codes.FailedPrecondition, ErrNotLeader.Error())
 	}
-	if s.AddPeer == nil {
+	if s.AddPeerFn == nil {
 		return nil, status.Error(codes.Unimplemented, "membership changes not supported on this node")
 	}
-	if err := s.AddPeer(req.PeerId, req.PeerAddr); err != nil {
+	if err := s.AddPeerFn(req.PeerId, req.PeerAddr); err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &pb.AddPeerResponse{Ok: true}, nil
@@ -184,20 +184,20 @@ func (s *GRPCSchedulerServer) RemovePeer(ctx context.Context, req *pb.RemovePeer
 	if !s.requireLeader() {
 		return nil, status.Error(codes.FailedPrecondition, ErrNotLeader.Error())
 	}
-	if s.RemovePeer == nil {
+	if s.RemovePeerFn == nil {
 		return nil, status.Error(codes.Unimplemented, "membership changes not supported on this node")
 	}
-	if err := s.RemovePeer(req.PeerId); err != nil {
+	if err := s.RemovePeerFn(req.PeerId); err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &pb.RemovePeerResponse{Ok: true}, nil
 }
 
 func (s *GRPCSchedulerServer) GetClusterMembership(ctx context.Context, req *pb.ClusterMembershipRequest) (*pb.ClusterMembershipResponse, error) {
-	if s.GetPeers == nil {
+	if s.GetPeersFn == nil {
 		return &pb.ClusterMembershipResponse{}, nil
 	}
-	leader, peers := s.GetPeers()
+	leader, peers := s.GetPeersFn()
 	return &pb.ClusterMembershipResponse{
 		LeaderId: leader,
 		Peers:    peers,

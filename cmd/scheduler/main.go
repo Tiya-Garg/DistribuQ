@@ -158,7 +158,7 @@ func main() {
 	pb.RegisterSchedulerServiceServer(server, &scheduler.GRPCSchedulerServer{
 		S:        sched,
 		IsLeader: func() bool { return node.State() == raft.Leader },
-		AddPeer: func(peerID, peerAddr string) error {
+		AddPeerFn: func(peerID, peerAddr string) error {
 			transport.SetPeerAddr(peerID, peerAddr)
 			ch, err := node.AddPeer(peerID, peerAddr)
 			if err != nil {
@@ -174,7 +174,7 @@ func main() {
 				return fmt.Errorf("timed out waiting for add peer commit")
 			}
 		},
-		RemovePeer: func(peerID string) error {
+		RemovePeerFn: func(peerID string) error {
 			ch, err := node.RemovePeer(peerID)
 			if err != nil {
 				return err
@@ -190,7 +190,7 @@ func main() {
 				return fmt.Errorf("timed out waiting for remove peer commit")
 			}
 		},
-		GetPeers: func() (string, []string) {
+		GetPeersFn: func() (string, []string) {
 			return node.ClusterMembership()
 		},
 	})
