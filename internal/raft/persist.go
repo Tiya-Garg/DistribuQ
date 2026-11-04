@@ -25,6 +25,8 @@ const (
 	CmdAddPeer    CommandType = "add_peer"
 	CmdRemovePeer CommandType = "remove_peer"
 	CmdCancel     CommandType = "canceled"
+	CmdAddCron    CommandType = "add_cron"
+	CmdRemoveCron CommandType = "remove_cron"
 )
 
 // LogEntry is an entry in the replicated Raft log representing a task event.
@@ -41,6 +43,7 @@ type LogEntry struct {
 	RunAtUnixMs int64       `json:"run_at_unix_ms,omitempty"`
 	PeerID      string      `json:"peer_id,omitempty"`
 	PeerAddr    string      `json:"peer_addr,omitempty"`
+	CronExpr    string      `json:"cron_expr,omitempty"`
 }
 
 // Persister durably stores the Raft state that must survive a restart:
