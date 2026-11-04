@@ -78,6 +78,10 @@ var (
 	// still be running on a worker.
 	ErrDuplicateTask = errors.New("scheduler: a task with this id already exists")
 
+	// ErrNotLeader is returned by operations that require leadership when this
+	// replica is not the current Raft leader.
+	ErrNotLeader = errors.New("scheduler: this replica is not the leader")
+
 	// ErrUnknownWorker is returned by Heartbeat when the scheduler has
 	// no record of the worker: it never registered, or it was reaped
 	// after missing heartbeats (or this replica just became leader and

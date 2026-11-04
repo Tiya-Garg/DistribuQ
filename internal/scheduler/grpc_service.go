@@ -10,6 +10,17 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// maxLoggedCause caps how many runes of a failure cause we print in logs.
+const maxLoggedCause = 500
+
+func truncateCause(cause string) string {
+	r := []rune(cause)
+	if len(r) <= maxLoggedCause {
+		return cause
+	}
+	return string(r[:maxLoggedCause]) + "..."
+}
+
 // GRPCSchedulerServer implements pb.SchedulerServiceServer to serve scheduler RPCs over gRPC.
 type GRPCSchedulerServer struct {
 	pb.UnimplementedSchedulerServiceServer
