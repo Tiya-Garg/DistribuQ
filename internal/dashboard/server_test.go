@@ -51,8 +51,8 @@ func TestDashboardIndex(t *testing.T) {
 
 func TestDashboardStatusAPI(t *testing.T) {
 	srv, node, sched := setupTestServer(t)
-	sched.RegisterWorker("w1", "127.0.0.1:9001")
-	_, _ = sched.SubmitTaskWithPriority("t1", "echo hi", 2)
+	sched.RegisterWorkerWithOpts("w1", "127.0.0.1:9001", []string{"gpu"}, 4)
+	_, _ = sched.SubmitTaskWithOpts("t1", "echo hi", 2, "gpu")
 
 	req := httptest.NewRequest(http.MethodGet, "/api/status", nil)
 	rec := httptest.NewRecorder()
@@ -70,11 +70,11 @@ func TestDashboardStatusAPI(t *testing.T) {
 	if status.Raft.NodeID != node.ID {
 		t.Errorf("expected node ID %s, got %s", node.ID, status.Raft.NodeID)
 	}
-	if len(status.Workers) != 1 || status.Workers[0].ID != "w1" {
-		t.Errorf("expected worker w1, got %+v", status.Workers)
+	if len(status.Workers) != 1 || status.Workers[0].ID != "w1" || len(status.Workers[0].Tags) != 1 || status.Workers[0].Tags[0] != "gpu" {
+		t.Errorf("expected worker w1 with gpu tag, got %+v", status.Workers)
 	}
-	if len(status.Tasks) != 1 || status.Tasks[0].ID != "t1" || status.Tasks[0].Priority != 2 {
-		t.Errorf("expected task t1 with priority 2, got %+v", status.Tasks)
+	if len(status.Tasks) != 1 || status.Tasks[0].ID != "t1" || status.Tasks[0].Priority != 2 || status.Tasks[0].RequiredTag != "gpu" {
+		t.Errorf("expected task t1 with priority 2 and gpu tag, got %+v", status.Tasks)
 	}
 }
 
@@ -82,7 +82,7 @@ func TestDashboardSubmitAPI(t *testing.T) {
 	srv, node, sched := setupTestServer(t)
 
 	// Submitting to non-leader should return 400
-	payload := `{"task_id":"t2","payload":"echo test","priority":3}`
+	payload := `{"task_id":"t2","payload":"echo test","priority":3,"required_tag":"gpu"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/submit", bytes.NewBufferString(payload))
 	rec := httptest.NewRecorder()
 
@@ -113,16 +113,25 @@ func TestDashboardSubmitAPI(t *testing.T) {
 		t.Fatalf("expected 200 on leader, got %d: %s", recLeader.Code, recLeader.Body.String())
 	}
 
-	tasks, _ := sched.DetailedStatus()
+	// Wait for applied entry
+	deadlineApply := time.Now().Add(2 * time.Second)
 	found := false
-	for _, tk := range tasks {
-		if tk.ID == "t2" && tk.Priority == 3 {
-			found = true
+	for time.Now().Before(deadlineApply) {
+		tasks, _ := sched.DetailedStatus()
+		for _, tk := range tasks {
+			if tk.ID == "t2" && tk.Priority == 3 && tk.RequiredTag == "gpu" {
+				found = true
+				break
+			}
+		}
+		if found {
 			break
 		}
+		time.Sleep(20 * time.Millisecond)
 	}
 	if !found {
-		t.Errorf("expected submitted task t2 with priority 3 in scheduler, got %+v", tasks)
+		tasks, _ := sched.DetailedStatus()
+		t.Errorf("expected submitted task t2 with priority 3 and gpu tag in scheduler, got %+v", tasks)
 	}
 }
 
