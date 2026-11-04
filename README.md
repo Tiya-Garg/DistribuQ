@@ -116,7 +116,22 @@ This is a portfolio/learning prototype. Known gaps:
 
 - **At-least-once execution.** A slow (not declared dead) worker can cause a task to run twice: it finishes after being declared dead and reassigned. This is expected and reported by the chaos harness.
 - **Single-term sequential dispatch.** Tasks are dispatched by the leader only; followers serve status reads but don't dispatch. This is correct but means throughput scales with a single leader's capacity.
-- **No authentication or TLS.** Task payloads run via `sh -c`, so only run this on a trusted network.
+
+## Security & Mutual TLS (mTLS)
+
+DistribuQ supports optional end-to-end mutual TLS (TLS 1.3) with client & server certificate verification against a shared root CA across all cluster transport connections:
+- Raft peer consensus transport
+- Worker heartbeat and task execution registration
+- Task submission (`submit`) and inspection (`status`) CLI commands
+
+### Flags
+All binaries accept the following TLS flags:
+- `-ca-cert`: Path to PEM-encoded Root CA certificate verifying peers.
+- `-tls-cert`: Path to PEM-encoded certificate for this node or client.
+- `-tls-key`: Path to PEM-encoded private key for this node or client.
+- `-server-name`: (Optional) Expected TLS Server Name (SAN) when dialing.
+
+When `-ca-cert` and `-tls-cert` are omitted, communication defaults to insecure plaintext for local evaluation.
 
 ## Roadmap
 
@@ -133,6 +148,7 @@ This is a portfolio/learning prototype. Known gaps:
 - [x] Multi-level priority task scheduling (CRITICAL, HIGH, NORMAL, LOW with preemption)
 - [x] Real-time live web dashboard & cluster monitor (embedded dark-mode UI with Server-Sent Events)
 - [x] Dynamic worker registration, capability tags, telemetry heartbeats & graceful drain
+- [x] Mutual TLS (mTLS) Authentication & Encryption for cluster transport and CLI commands
 
 ## License
 
