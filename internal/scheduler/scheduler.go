@@ -33,6 +33,7 @@ const (
 	TaskDLQ       TaskStatus = "dlq"
 	TaskScheduled TaskStatus = "scheduled"
 	TaskCanceled  TaskStatus = "canceled"
+	TaskBlocked   TaskStatus = "blocked"
 )
 
 type Task struct {
@@ -47,6 +48,7 @@ type Task struct {
 	LastError   string
 	NextRetryAt time.Time
 	RunAt       time.Time
+	DependsOn   []string
 
 	// seq is the task's submission order, used to dispatch tasks that
 	// were left queued in first-come, first-served order.
@@ -86,6 +88,9 @@ var (
 	// accepting a duplicate would silently overwrite a task that may
 	// still be running on a worker.
 	ErrDuplicateTask = errors.New("scheduler: a task with this id already exists")
+
+	// ErrCyclicDependency is returned when a task specifies dependencies that form a cycle.
+	ErrCyclicDependency = errors.New("scheduler: cyclic dependency detected in task DAG")
 
 	// ErrNotLeader is returned by operations that require leadership when this
 	// replica is not the current Raft leader.
@@ -321,6 +326,87 @@ func (s *Scheduler) SubmitTaskWithOpts(id, payload string, priority int, require
 
 // SubmitTaskFull queues a task with priority, capability tags, and optional scheduled execution time.
 func (s *Scheduler) SubmitTaskFull(id, payload string, priority int, requiredTag string, runAt time.Time) (*Task, error) {
+	return s.SubmitTaskDAG(id, payload, priority, requiredTag, runAt, nil)
+}
+
+// checkCyclicDependencyLocked checks if taskID depends directly or indirectly on itself
+// given the proposed list of parent task dependencies.
+func (s *Scheduler) checkCyclicDependencyLocked(taskID string, dependsOn []string) error {
+	for _, depID := range dependsOn {
+		if depID == taskID {
+			return ErrCyclicDependency
+		}
+		visited := make(map[string]bool)
+		var checkCycle func(curr string) bool
+		checkCycle = func(curr string) bool {
+			if curr == taskID {
+				return true
+			}
+			if visited[curr] {
+				return false
+			}
+			visited[curr] = true
+			if parentTask, ok := s.tasks[curr]; ok {
+				for _, next := range parentTask.DependsOn {
+					if checkCycle(next) {
+						return true
+					}
+				}
+			}
+			return false
+		}
+		if checkCycle(depID) {
+			return ErrCyclicDependency
+		}
+	}
+	return nil
+}
+
+// resolveDependenciesLocked checks all blocked tasks and unblocks those whose
+// dependencies have completed successfully, or fails those whose dependencies failed.
+func (s *Scheduler) resolveDependenciesLocked() {
+	changed := true
+	for changed {
+		changed = false
+		for _, t := range s.tasks {
+			if t.Status != TaskBlocked {
+				continue
+			}
+			allDone := true
+			depFailed := false
+			for _, depID := range t.DependsOn {
+				dep, ok := s.tasks[depID]
+				if !ok {
+					allDone = false
+					break
+				}
+				if dep.Status == TaskFailed || dep.Status == TaskDLQ || dep.Status == TaskCanceled {
+					depFailed = true
+					t.LastError = fmt.Sprintf("dependency %q failed with status %s", depID, dep.Status)
+					break
+				}
+				if dep.Status != TaskCompleted {
+					allDone = false
+				}
+			}
+			if depFailed {
+				t.Status = TaskFailed
+				metrics.DefaultRegistry.IncFailed()
+				changed = true
+			} else if allDone {
+				if !t.RunAt.IsZero() && t.RunAt.After(time.Now()) {
+					t.Status = TaskScheduled
+				} else {
+					t.Status = TaskQueued
+				}
+				changed = true
+			}
+		}
+	}
+}
+
+// SubmitTaskDAG queues a task with dependencies (DAG), priority, capability tags, and optional scheduled execution time.
+func (s *Scheduler) SubmitTaskDAG(id, payload string, priority int, requiredTag string, runAt time.Time, dependsOn []string) (*Task, error) {
 	if id == "" {
 		return nil, ErrEmptyTaskID
 	}
@@ -331,10 +417,35 @@ func (s *Scheduler) SubmitTaskFull(id, payload string, priority int, requiredTag
 		return nil, ErrDuplicateTask
 	}
 
+	if err := s.checkCyclicDependencyLocked(id, dependsOn); err != nil {
+		s.mu.Unlock()
+		return nil, err
+	}
+
 	status := TaskQueued
 	now := time.Now()
 	if !runAt.IsZero() && runAt.After(now) {
 		status = TaskScheduled
+	}
+
+	if len(dependsOn) > 0 {
+		depFailed := false
+		depBlocked := false
+		for _, depID := range dependsOn {
+			depTask, exists := s.tasks[depID]
+			if !exists || depTask.Status != TaskCompleted {
+				if exists && (depTask.Status == TaskFailed || depTask.Status == TaskDLQ || depTask.Status == TaskCanceled) {
+					depFailed = true
+					break
+				}
+				depBlocked = true
+			}
+		}
+		if depFailed {
+			status = TaskFailed
+		} else if depBlocked {
+			status = TaskBlocked
+		}
 	}
 
 	proposer := s.proposer
@@ -348,6 +459,7 @@ func (s *Scheduler) SubmitTaskFull(id, payload string, priority int, requiredTag
 			Priority:    priority,
 			RequiredTag: requiredTag,
 			RunAt:       runAt,
+			DependsOn:   dependsOn,
 			seq:         s.nextSeq,
 		}
 		s.tasks[id] = task
@@ -373,6 +485,7 @@ func (s *Scheduler) SubmitTaskFull(id, payload string, priority int, requiredTag
 		Priority:    priority,
 		RequiredTag: requiredTag,
 		RunAtUnixMs: runAtUnixMs,
+		DependsOn:   dependsOn,
 	})
 	if err != nil {
 		return nil, err
@@ -1050,6 +1163,7 @@ func (s *Scheduler) triggerCronJobsLocked() {
 func (s *Scheduler) dispatchQueued() {
 	s.mu.Lock()
 	s.triggerCronJobsLocked()
+	s.resolveDependenciesLocked()
 	if s.pickLeastLoadedWorkerLocked() == nil {
 		s.mu.Unlock()
 		return
@@ -1248,6 +1362,7 @@ type TaskSnapshot struct {
 	RequiredTag string     `json:"required_tag,omitempty"`
 	LastError   string     `json:"last_error,omitempty"`
 	RunAt       time.Time  `json:"run_at,omitempty"`
+	DependsOn   []string   `json:"depends_on,omitempty"`
 }
 
 type schedulerSnapshotData struct {
@@ -1275,6 +1390,7 @@ func (s *Scheduler) EncodeState() ([]byte, error) {
 			RequiredTag: t.RequiredTag,
 			LastError:   t.LastError,
 			RunAt:       t.RunAt,
+			DependsOn:   t.DependsOn,
 		}
 	}
 
@@ -1323,6 +1439,7 @@ func (s *Scheduler) RestoreFromSnapshot(data []byte) error {
 			RequiredTag: ts.RequiredTag,
 			LastError:   ts.LastError,
 			RunAt:       ts.RunAt,
+			DependsOn:   ts.DependsOn,
 			seq:         ts.Seq,
 			tried:       make(map[string]bool),
 		}
@@ -1366,6 +1483,25 @@ func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
 					status = TaskScheduled
 				}
 			}
+			if len(entry.DependsOn) > 0 {
+				depFailed := false
+				depBlocked := false
+				for _, depID := range entry.DependsOn {
+					depTask, exists := s.tasks[depID]
+					if !exists || depTask.Status != TaskCompleted {
+						if exists && (depTask.Status == TaskFailed || depTask.Status == TaskDLQ || depTask.Status == TaskCanceled) {
+							depFailed = true
+							break
+						}
+						depBlocked = true
+					}
+				}
+				if depFailed {
+					status = TaskFailed
+				} else if depBlocked {
+					status = TaskBlocked
+				}
+			}
 			s.tasks[entry.TaskID] = &Task{
 				ID:          entry.TaskID,
 				Payload:     entry.Payload,
@@ -1373,6 +1509,7 @@ func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
 				Priority:    entry.Priority,
 				RequiredTag: entry.RequiredTag,
 				RunAt:       runAt,
+				DependsOn:   entry.DependsOn,
 				MaxRetries:  3,
 				seq:         s.nextSeq,
 			}
@@ -1408,6 +1545,7 @@ func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
 			if w, ok := s.workers[task.WorkerID]; ok {
 				delete(w.ActiveTasks, entry.TaskID)
 			}
+			s.resolveDependenciesLocked()
 		}
 
 	case raft.CmdFail:
@@ -1416,6 +1554,7 @@ func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
 				delete(w.ActiveTasks, entry.TaskID)
 			}
 			s.requeueOrFailWithCauseLocked(task, entry.Cause)
+			s.resolveDependenciesLocked()
 		}
 
 	case raft.CmdReplayDLQ:
@@ -1443,6 +1582,7 @@ func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
 				}
 				task.WorkerID = ""
 			}
+			s.resolveDependenciesLocked()
 		}
 
 	case raft.CmdAddCron:
