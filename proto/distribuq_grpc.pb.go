@@ -197,16 +197,19 @@ var RaftService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	SchedulerService_RegisterWorker_FullMethodName = "/distribuq.SchedulerService/RegisterWorker"
-	SchedulerService_DrainWorker_FullMethodName    = "/distribuq.SchedulerService/DrainWorker"
-	SchedulerService_Heartbeat_FullMethodName      = "/distribuq.SchedulerService/Heartbeat"
-	SchedulerService_SubmitTask_FullMethodName     = "/distribuq.SchedulerService/SubmitTask"
-	SchedulerService_CompleteTask_FullMethodName   = "/distribuq.SchedulerService/CompleteTask"
-	SchedulerService_FailTask_FullMethodName       = "/distribuq.SchedulerService/FailTask"
-	SchedulerService_GetStatus_FullMethodName      = "/distribuq.SchedulerService/GetStatus"
-	SchedulerService_GetDLQ_FullMethodName         = "/distribuq.SchedulerService/GetDLQ"
-	SchedulerService_ReplayDLQ_FullMethodName      = "/distribuq.SchedulerService/ReplayDLQ"
-	SchedulerService_PurgeDLQ_FullMethodName       = "/distribuq.SchedulerService/PurgeDLQ"
+	SchedulerService_RegisterWorker_FullMethodName       = "/distribuq.SchedulerService/RegisterWorker"
+	SchedulerService_DrainWorker_FullMethodName          = "/distribuq.SchedulerService/DrainWorker"
+	SchedulerService_Heartbeat_FullMethodName            = "/distribuq.SchedulerService/Heartbeat"
+	SchedulerService_SubmitTask_FullMethodName           = "/distribuq.SchedulerService/SubmitTask"
+	SchedulerService_CompleteTask_FullMethodName         = "/distribuq.SchedulerService/CompleteTask"
+	SchedulerService_FailTask_FullMethodName             = "/distribuq.SchedulerService/FailTask"
+	SchedulerService_GetStatus_FullMethodName            = "/distribuq.SchedulerService/GetStatus"
+	SchedulerService_GetDLQ_FullMethodName               = "/distribuq.SchedulerService/GetDLQ"
+	SchedulerService_ReplayDLQ_FullMethodName            = "/distribuq.SchedulerService/ReplayDLQ"
+	SchedulerService_PurgeDLQ_FullMethodName             = "/distribuq.SchedulerService/PurgeDLQ"
+	SchedulerService_AddPeer_FullMethodName              = "/distribuq.SchedulerService/AddPeer"
+	SchedulerService_RemovePeer_FullMethodName           = "/distribuq.SchedulerService/RemovePeer"
+	SchedulerService_GetClusterMembership_FullMethodName = "/distribuq.SchedulerService/GetClusterMembership"
 )
 
 // SchedulerServiceClient is the client API for SchedulerService service.
@@ -223,6 +226,9 @@ type SchedulerServiceClient interface {
 	GetDLQ(ctx context.Context, in *GetDLQRequest, opts ...grpc.CallOption) (*GetDLQResponse, error)
 	ReplayDLQ(ctx context.Context, in *ReplayDLQRequest, opts ...grpc.CallOption) (*ReplayDLQResponse, error)
 	PurgeDLQ(ctx context.Context, in *PurgeDLQRequest, opts ...grpc.CallOption) (*PurgeDLQResponse, error)
+	AddPeer(ctx context.Context, in *AddPeerRequest, opts ...grpc.CallOption) (*AddPeerResponse, error)
+	RemovePeer(ctx context.Context, in *RemovePeerRequest, opts ...grpc.CallOption) (*RemovePeerResponse, error)
+	GetClusterMembership(ctx context.Context, in *ClusterMembershipRequest, opts ...grpc.CallOption) (*ClusterMembershipResponse, error)
 }
 
 type schedulerServiceClient struct {
@@ -333,6 +339,36 @@ func (c *schedulerServiceClient) PurgeDLQ(ctx context.Context, in *PurgeDLQReque
 	return out, nil
 }
 
+func (c *schedulerServiceClient) AddPeer(ctx context.Context, in *AddPeerRequest, opts ...grpc.CallOption) (*AddPeerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AddPeerResponse)
+	err := c.cc.Invoke(ctx, SchedulerService_AddPeer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *schedulerServiceClient) RemovePeer(ctx context.Context, in *RemovePeerRequest, opts ...grpc.CallOption) (*RemovePeerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RemovePeerResponse)
+	err := c.cc.Invoke(ctx, SchedulerService_RemovePeer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *schedulerServiceClient) GetClusterMembership(ctx context.Context, in *ClusterMembershipRequest, opts ...grpc.CallOption) (*ClusterMembershipResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClusterMembershipResponse)
+	err := c.cc.Invoke(ctx, SchedulerService_GetClusterMembership_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SchedulerServiceServer is the server API for SchedulerService service.
 // All implementations must embed UnimplementedSchedulerServiceServer
 // for forward compatibility.
@@ -347,6 +383,9 @@ type SchedulerServiceServer interface {
 	GetDLQ(context.Context, *GetDLQRequest) (*GetDLQResponse, error)
 	ReplayDLQ(context.Context, *ReplayDLQRequest) (*ReplayDLQResponse, error)
 	PurgeDLQ(context.Context, *PurgeDLQRequest) (*PurgeDLQResponse, error)
+	AddPeer(context.Context, *AddPeerRequest) (*AddPeerResponse, error)
+	RemovePeer(context.Context, *RemovePeerRequest) (*RemovePeerResponse, error)
+	GetClusterMembership(context.Context, *ClusterMembershipRequest) (*ClusterMembershipResponse, error)
 	mustEmbedUnimplementedSchedulerServiceServer()
 }
 
@@ -386,6 +425,15 @@ func (UnimplementedSchedulerServiceServer) ReplayDLQ(context.Context, *ReplayDLQ
 }
 func (UnimplementedSchedulerServiceServer) PurgeDLQ(context.Context, *PurgeDLQRequest) (*PurgeDLQResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method PurgeDLQ not implemented")
+}
+func (UnimplementedSchedulerServiceServer) AddPeer(context.Context, *AddPeerRequest) (*AddPeerResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AddPeer not implemented")
+}
+func (UnimplementedSchedulerServiceServer) RemovePeer(context.Context, *RemovePeerRequest) (*RemovePeerResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RemovePeer not implemented")
+}
+func (UnimplementedSchedulerServiceServer) GetClusterMembership(context.Context, *ClusterMembershipRequest) (*ClusterMembershipResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetClusterMembership not implemented")
 }
 func (UnimplementedSchedulerServiceServer) mustEmbedUnimplementedSchedulerServiceServer() {}
 func (UnimplementedSchedulerServiceServer) testEmbeddedByValue()                          {}
@@ -588,6 +636,60 @@ func _SchedulerService_PurgeDLQ_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SchedulerService_AddPeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddPeerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SchedulerServiceServer).AddPeer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SchedulerService_AddPeer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SchedulerServiceServer).AddPeer(ctx, req.(*AddPeerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SchedulerService_RemovePeer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemovePeerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SchedulerServiceServer).RemovePeer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SchedulerService_RemovePeer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SchedulerServiceServer).RemovePeer(ctx, req.(*RemovePeerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SchedulerService_GetClusterMembership_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClusterMembershipRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SchedulerServiceServer).GetClusterMembership(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SchedulerService_GetClusterMembership_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SchedulerServiceServer).GetClusterMembership(ctx, req.(*ClusterMembershipRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SchedulerService_ServiceDesc is the grpc.ServiceDesc for SchedulerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -634,6 +736,18 @@ var SchedulerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PurgeDLQ",
 			Handler:    _SchedulerService_PurgeDLQ_Handler,
+		},
+		{
+			MethodName: "AddPeer",
+			Handler:    _SchedulerService_AddPeer_Handler,
+		},
+		{
+			MethodName: "RemovePeer",
+			Handler:    _SchedulerService_RemovePeer_Handler,
+		},
+		{
+			MethodName: "GetClusterMembership",
+			Handler:    _SchedulerService_GetClusterMembership_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

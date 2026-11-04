@@ -18,6 +18,9 @@ message LogEntry {
   string cause = 7;
   int32 priority = 8;
   string required_tag = 9;
+  int64 run_at_unix_ms = 10;
+  string peer_id = 11;
+  string peer_addr = 12;
 }
 
 message RequestVoteRequest {
@@ -97,6 +100,7 @@ message SubmitTaskRequest {
   string payload = 2;
   int32 priority = 3;
   string required_tag = 4;
+  int64 run_at_unix_ms = 5;
 }
 
 message SubmitTaskResponse {
@@ -144,6 +148,7 @@ enum TaskState {
   COMPLETED = 3;
   FAILED = 4;
   DLQ = 5;
+  SCHEDULED = 6;
 }
 
 message TaskInfo {
@@ -156,6 +161,7 @@ message TaskInfo {
   int32 priority = 7;
   string required_tag = 8;
   string last_error = 9;
+  int64 run_at_unix_ms = 10;
 }
 
 message ReplayDLQRequest {
@@ -180,6 +186,30 @@ message GetDLQResponse {
   repeated TaskInfo tasks = 1;
 }
 
+message AddPeerRequest {
+  string peer_id = 1;
+  string peer_addr = 2;
+}
+
+message AddPeerResponse {
+  bool ok = 1;
+}
+
+message RemovePeerRequest {
+  string peer_id = 1;
+}
+
+message RemovePeerResponse {
+  bool ok = 1;
+}
+
+message ClusterMembershipRequest {}
+
+message ClusterMembershipResponse {
+  string leader_id = 1;
+  repeated string peers = 2;
+}
+
 service SchedulerService {
   rpc RegisterWorker(RegisterWorkerRequest) returns (RegisterWorkerResponse);
   rpc DrainWorker(DrainWorkerRequest) returns (DrainWorkerResponse);
@@ -191,6 +221,9 @@ service SchedulerService {
   rpc GetDLQ(GetDLQRequest) returns (GetDLQResponse);
   rpc ReplayDLQ(ReplayDLQRequest) returns (ReplayDLQResponse);
   rpc PurgeDLQ(PurgeDLQRequest) returns (PurgeDLQResponse);
+  rpc AddPeer(AddPeerRequest) returns (AddPeerResponse);
+  rpc RemovePeer(RemovePeerRequest) returns (RemovePeerResponse);
+  rpc GetClusterMembership(ClusterMembershipRequest) returns (ClusterMembershipResponse);
 }
 
 // -------------------------------------------------------------

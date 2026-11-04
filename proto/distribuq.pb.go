@@ -30,6 +30,7 @@ const (
 	TaskState_COMPLETED TaskState = 3
 	TaskState_FAILED    TaskState = 4
 	TaskState_DLQ       TaskState = 5
+	TaskState_SCHEDULED TaskState = 6
 )
 
 // Enum value maps for TaskState.
@@ -41,6 +42,7 @@ var (
 		3: "COMPLETED",
 		4: "FAILED",
 		5: "DLQ",
+		6: "SCHEDULED",
 	}
 	TaskState_value = map[string]int32{
 		"QUEUED":    0,
@@ -49,6 +51,7 @@ var (
 		"COMPLETED": 3,
 		"FAILED":    4,
 		"DLQ":       5,
+		"SCHEDULED": 6,
 	}
 )
 
@@ -90,6 +93,9 @@ type LogEntry struct {
 	Cause         string                 `protobuf:"bytes,7,opt,name=cause,proto3" json:"cause,omitempty"`
 	Priority      int32                  `protobuf:"varint,8,opt,name=priority,proto3" json:"priority,omitempty"`
 	RequiredTag   string                 `protobuf:"bytes,9,opt,name=required_tag,json=requiredTag,proto3" json:"required_tag,omitempty"`
+	RunAtUnixMs   int64                  `protobuf:"varint,10,opt,name=run_at_unix_ms,json=runAtUnixMs,proto3" json:"run_at_unix_ms,omitempty"`
+	PeerId        string                 `protobuf:"bytes,11,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	PeerAddr      string                 `protobuf:"bytes,12,opt,name=peer_addr,json=peerAddr,proto3" json:"peer_addr,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -183,6 +189,27 @@ func (x *LogEntry) GetPriority() int32 {
 func (x *LogEntry) GetRequiredTag() string {
 	if x != nil {
 		return x.RequiredTag
+	}
+	return ""
+}
+
+func (x *LogEntry) GetRunAtUnixMs() int64 {
+	if x != nil {
+		return x.RunAtUnixMs
+	}
+	return 0
+}
+
+func (x *LogEntry) GetPeerId() string {
+	if x != nil {
+		return x.PeerId
+	}
+	return ""
+}
+
+func (x *LogEntry) GetPeerAddr() string {
+	if x != nil {
+		return x.PeerAddr
 	}
 	return ""
 }
@@ -809,6 +836,7 @@ type SubmitTaskRequest struct {
 	Payload       string                 `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
 	Priority      int32                  `protobuf:"varint,3,opt,name=priority,proto3" json:"priority,omitempty"`
 	RequiredTag   string                 `protobuf:"bytes,4,opt,name=required_tag,json=requiredTag,proto3" json:"required_tag,omitempty"`
+	RunAtUnixMs   int64                  `protobuf:"varint,5,opt,name=run_at_unix_ms,json=runAtUnixMs,proto3" json:"run_at_unix_ms,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -869,6 +897,13 @@ func (x *SubmitTaskRequest) GetRequiredTag() string {
 		return x.RequiredTag
 	}
 	return ""
+}
+
+func (x *SubmitTaskRequest) GetRunAtUnixMs() int64 {
+	if x != nil {
+		return x.RunAtUnixMs
+	}
+	return 0
 }
 
 type SubmitTaskResponse struct {
@@ -1302,6 +1337,7 @@ type TaskInfo struct {
 	Priority      int32                  `protobuf:"varint,7,opt,name=priority,proto3" json:"priority,omitempty"`
 	RequiredTag   string                 `protobuf:"bytes,8,opt,name=required_tag,json=requiredTag,proto3" json:"required_tag,omitempty"`
 	LastError     string                 `protobuf:"bytes,9,opt,name=last_error,json=lastError,proto3" json:"last_error,omitempty"`
+	RunAtUnixMs   int64                  `protobuf:"varint,10,opt,name=run_at_unix_ms,json=runAtUnixMs,proto3" json:"run_at_unix_ms,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1397,6 +1433,13 @@ func (x *TaskInfo) GetLastError() string {
 		return x.LastError
 	}
 	return ""
+}
+
+func (x *TaskInfo) GetRunAtUnixMs() int64 {
+	if x != nil {
+		return x.RunAtUnixMs
+	}
+	return 0
 }
 
 type ReplayDLQRequest struct {
@@ -1655,6 +1698,278 @@ func (x *GetDLQResponse) GetTasks() []*TaskInfo {
 	return nil
 }
 
+type AddPeerRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PeerId        string                 `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	PeerAddr      string                 `protobuf:"bytes,2,opt,name=peer_addr,json=peerAddr,proto3" json:"peer_addr,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddPeerRequest) Reset() {
+	*x = AddPeerRequest{}
+	mi := &file_proto_distribuq_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddPeerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddPeerRequest) ProtoMessage() {}
+
+func (x *AddPeerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_distribuq_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddPeerRequest.ProtoReflect.Descriptor instead.
+func (*AddPeerRequest) Descriptor() ([]byte, []int) {
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *AddPeerRequest) GetPeerId() string {
+	if x != nil {
+		return x.PeerId
+	}
+	return ""
+}
+
+func (x *AddPeerRequest) GetPeerAddr() string {
+	if x != nil {
+		return x.PeerAddr
+	}
+	return ""
+}
+
+type AddPeerResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddPeerResponse) Reset() {
+	*x = AddPeerResponse{}
+	mi := &file_proto_distribuq_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddPeerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddPeerResponse) ProtoMessage() {}
+
+func (x *AddPeerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_distribuq_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddPeerResponse.ProtoReflect.Descriptor instead.
+func (*AddPeerResponse) Descriptor() ([]byte, []int) {
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *AddPeerResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+type RemovePeerRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PeerId        string                 `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemovePeerRequest) Reset() {
+	*x = RemovePeerRequest{}
+	mi := &file_proto_distribuq_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemovePeerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemovePeerRequest) ProtoMessage() {}
+
+func (x *RemovePeerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_distribuq_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemovePeerRequest.ProtoReflect.Descriptor instead.
+func (*RemovePeerRequest) Descriptor() ([]byte, []int) {
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *RemovePeerRequest) GetPeerId() string {
+	if x != nil {
+		return x.PeerId
+	}
+	return ""
+}
+
+type RemovePeerResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemovePeerResponse) Reset() {
+	*x = RemovePeerResponse{}
+	mi := &file_proto_distribuq_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemovePeerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemovePeerResponse) ProtoMessage() {}
+
+func (x *RemovePeerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_distribuq_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemovePeerResponse.ProtoReflect.Descriptor instead.
+func (*RemovePeerResponse) Descriptor() ([]byte, []int) {
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *RemovePeerResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+type ClusterMembershipRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ClusterMembershipRequest) Reset() {
+	*x = ClusterMembershipRequest{}
+	mi := &file_proto_distribuq_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClusterMembershipRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClusterMembershipRequest) ProtoMessage() {}
+
+func (x *ClusterMembershipRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_distribuq_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClusterMembershipRequest.ProtoReflect.Descriptor instead.
+func (*ClusterMembershipRequest) Descriptor() ([]byte, []int) {
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{32}
+}
+
+type ClusterMembershipResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	LeaderId      string                 `protobuf:"bytes,1,opt,name=leader_id,json=leaderId,proto3" json:"leader_id,omitempty"`
+	Peers         []string               `protobuf:"bytes,2,rep,name=peers,proto3" json:"peers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ClusterMembershipResponse) Reset() {
+	*x = ClusterMembershipResponse{}
+	mi := &file_proto_distribuq_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ClusterMembershipResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClusterMembershipResponse) ProtoMessage() {}
+
+func (x *ClusterMembershipResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_distribuq_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClusterMembershipResponse.ProtoReflect.Descriptor instead.
+func (*ClusterMembershipResponse) Descriptor() ([]byte, []int) {
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *ClusterMembershipResponse) GetLeaderId() string {
+	if x != nil {
+		return x.LeaderId
+	}
+	return ""
+}
+
+func (x *ClusterMembershipResponse) GetPeers() []string {
+	if x != nil {
+		return x.Peers
+	}
+	return nil
+}
+
 type ExecuteTaskRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
@@ -1665,7 +1980,7 @@ type ExecuteTaskRequest struct {
 
 func (x *ExecuteTaskRequest) Reset() {
 	*x = ExecuteTaskRequest{}
-	mi := &file_proto_distribuq_proto_msgTypes[28]
+	mi := &file_proto_distribuq_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1677,7 +1992,7 @@ func (x *ExecuteTaskRequest) String() string {
 func (*ExecuteTaskRequest) ProtoMessage() {}
 
 func (x *ExecuteTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_distribuq_proto_msgTypes[28]
+	mi := &file_proto_distribuq_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1690,7 +2005,7 @@ func (x *ExecuteTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteTaskRequest.ProtoReflect.Descriptor instead.
 func (*ExecuteTaskRequest) Descriptor() ([]byte, []int) {
-	return file_proto_distribuq_proto_rawDescGZIP(), []int{28}
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *ExecuteTaskRequest) GetTaskId() string {
@@ -1716,7 +2031,7 @@ type ExecuteTaskResponse struct {
 
 func (x *ExecuteTaskResponse) Reset() {
 	*x = ExecuteTaskResponse{}
-	mi := &file_proto_distribuq_proto_msgTypes[29]
+	mi := &file_proto_distribuq_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1728,7 +2043,7 @@ func (x *ExecuteTaskResponse) String() string {
 func (*ExecuteTaskResponse) ProtoMessage() {}
 
 func (x *ExecuteTaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_distribuq_proto_msgTypes[29]
+	mi := &file_proto_distribuq_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1741,7 +2056,7 @@ func (x *ExecuteTaskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteTaskResponse.ProtoReflect.Descriptor instead.
 func (*ExecuteTaskResponse) Descriptor() ([]byte, []int) {
-	return file_proto_distribuq_proto_rawDescGZIP(), []int{29}
+	return file_proto_distribuq_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ExecuteTaskResponse) GetAccepted() bool {
@@ -1755,7 +2070,7 @@ var File_proto_distribuq_proto protoreflect.FileDescriptor
 
 const file_proto_distribuq_proto_rawDesc = "" +
 	"\n" +
-	"\x15proto/distribuq.proto\x12\tdistribuq\"\xed\x01\n" +
+	"\x15proto/distribuq.proto\x12\tdistribuq\"\xc8\x02\n" +
 	"\bLogEntry\x12\x14\n" +
 	"\x05index\x18\x01 \x01(\x03R\x05index\x12\x12\n" +
 	"\x04term\x18\x02 \x01(\x03R\x04term\x12\x12\n" +
@@ -1765,7 +2080,11 @@ const file_proto_distribuq_proto_rawDesc = "" +
 	"\tworker_id\x18\x06 \x01(\tR\bworkerId\x12\x14\n" +
 	"\x05cause\x18\a \x01(\tR\x05cause\x12\x1a\n" +
 	"\bpriority\x18\b \x01(\x05R\bpriority\x12!\n" +
-	"\frequired_tag\x18\t \x01(\tR\vrequiredTag\"\x95\x01\n" +
+	"\frequired_tag\x18\t \x01(\tR\vrequiredTag\x12#\n" +
+	"\x0erun_at_unix_ms\x18\n" +
+	" \x01(\x03R\vrunAtUnixMs\x12\x17\n" +
+	"\apeer_id\x18\v \x01(\tR\x06peerId\x12\x1b\n" +
+	"\tpeer_addr\x18\f \x01(\tR\bpeerAddr\"\x95\x01\n" +
 	"\x12RequestVoteRequest\x12\x12\n" +
 	"\x04term\x18\x01 \x01(\x03R\x04term\x12!\n" +
 	"\fcandidate_id\x18\x02 \x01(\tR\vcandidateId\x12$\n" +
@@ -1808,12 +2127,13 @@ const file_proto_distribuq_proto_rawDesc = "" +
 	"\factive_tasks\x18\x02 \x01(\x05R\vactiveTasks\x12\x1b\n" +
 	"\tcpu_usage\x18\x03 \x01(\x01R\bcpuUsage\"#\n" +
 	"\x11HeartbeatResponse\x12\x0e\n" +
-	"\x02ok\x18\x01 \x01(\bR\x02ok\"\x85\x01\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\"\xaa\x01\n" +
 	"\x11SubmitTaskRequest\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x18\n" +
 	"\apayload\x18\x02 \x01(\tR\apayload\x12\x1a\n" +
 	"\bpriority\x18\x03 \x01(\x05R\bpriority\x12!\n" +
-	"\frequired_tag\x18\x04 \x01(\tR\vrequiredTag\"$\n" +
+	"\frequired_tag\x18\x04 \x01(\tR\vrequiredTag\x12#\n" +
+	"\x0erun_at_unix_ms\x18\x05 \x01(\x03R\vrunAtUnixMs\"$\n" +
 	"\x12SubmitTaskResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\"K\n" +
 	"\x13CompleteTaskRequest\x12\x17\n" +
@@ -1838,7 +2158,7 @@ const file_proto_distribuq_proto_rawDesc = "" +
 	"\x12DrainWorkerRequest\x12\x1b\n" +
 	"\tworker_id\x18\x01 \x01(\tR\bworkerId\"%\n" +
 	"\x13DrainWorkerResponse\x12\x0e\n" +
-	"\x02ok\x18\x01 \x01(\bR\x02ok\"\x84\x02\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\"\xa9\x02\n" +
 	"\bTaskInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\apayload\x18\x02 \x01(\tR\apayload\x12\x16\n" +
@@ -1850,7 +2170,9 @@ const file_proto_distribuq_proto_rawDesc = "" +
 	"\bpriority\x18\a \x01(\x05R\bpriority\x12!\n" +
 	"\frequired_tag\x18\b \x01(\tR\vrequiredTag\x12\x1d\n" +
 	"\n" +
-	"last_error\x18\t \x01(\tR\tlastError\"+\n" +
+	"last_error\x18\t \x01(\tR\tlastError\x12#\n" +
+	"\x0erun_at_unix_ms\x18\n" +
+	" \x01(\x03R\vrunAtUnixMs\"+\n" +
 	"\x10ReplayDLQRequest\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\"#\n" +
 	"\x11ReplayDLQResponse\x12\x0e\n" +
@@ -1861,12 +2183,25 @@ const file_proto_distribuq_proto_rawDesc = "" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\"\x0f\n" +
 	"\rGetDLQRequest\";\n" +
 	"\x0eGetDLQResponse\x12)\n" +
-	"\x05tasks\x18\x01 \x03(\v2\x13.distribuq.TaskInfoR\x05tasks\"G\n" +
+	"\x05tasks\x18\x01 \x03(\v2\x13.distribuq.TaskInfoR\x05tasks\"F\n" +
+	"\x0eAddPeerRequest\x12\x17\n" +
+	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12\x1b\n" +
+	"\tpeer_addr\x18\x02 \x01(\tR\bpeerAddr\"!\n" +
+	"\x0fAddPeerResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\",\n" +
+	"\x11RemovePeerRequest\x12\x17\n" +
+	"\apeer_id\x18\x01 \x01(\tR\x06peerId\"$\n" +
+	"\x12RemovePeerResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\"\x1a\n" +
+	"\x18ClusterMembershipRequest\"N\n" +
+	"\x19ClusterMembershipResponse\x12\x1b\n" +
+	"\tleader_id\x18\x01 \x01(\tR\bleaderId\x12\x14\n" +
+	"\x05peers\x18\x02 \x03(\tR\x05peers\"G\n" +
 	"\x12ExecuteTaskRequest\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\x18\n" +
 	"\apayload\x18\x02 \x01(\tR\apayload\"1\n" +
 	"\x13ExecuteTaskResponse\x12\x1a\n" +
-	"\baccepted\x18\x01 \x01(\bR\baccepted*V\n" +
+	"\baccepted\x18\x01 \x01(\bR\baccepted*e\n" +
 	"\tTaskState\x12\n" +
 	"\n" +
 	"\x06QUEUED\x10\x00\x12\f\n" +
@@ -1875,11 +2210,12 @@ const file_proto_distribuq_proto_rawDesc = "" +
 	"\tCOMPLETED\x10\x03\x12\n" +
 	"\n" +
 	"\x06FAILED\x10\x04\x12\a\n" +
-	"\x03DLQ\x10\x052\x89\x02\n" +
+	"\x03DLQ\x10\x05\x12\r\n" +
+	"\tSCHEDULED\x10\x062\x89\x02\n" +
 	"\vRaftService\x12L\n" +
 	"\vRequestVote\x12\x1d.distribuq.RequestVoteRequest\x1a\x1e.distribuq.RequestVoteResponse\x12R\n" +
 	"\rAppendEntries\x12\x1f.distribuq.AppendEntriesRequest\x1a .distribuq.AppendEntriesResponse\x12X\n" +
-	"\x0fInstallSnapshot\x12!.distribuq.InstallSnapshotRequest\x1a\".distribuq.InstallSnapshotResponse2\xf4\x05\n" +
+	"\x0fInstallSnapshot\x12!.distribuq.InstallSnapshotRequest\x1a\".distribuq.InstallSnapshotResponse2\xe4\a\n" +
 	"\x10SchedulerService\x12U\n" +
 	"\x0eRegisterWorker\x12 .distribuq.RegisterWorkerRequest\x1a!.distribuq.RegisterWorkerResponse\x12L\n" +
 	"\vDrainWorker\x12\x1d.distribuq.DrainWorkerRequest\x1a\x1e.distribuq.DrainWorkerResponse\x12F\n" +
@@ -1891,7 +2227,11 @@ const file_proto_distribuq_proto_rawDesc = "" +
 	"\tGetStatus\x12\x1b.distribuq.GetStatusRequest\x1a\x1c.distribuq.GetStatusResponse\x12=\n" +
 	"\x06GetDLQ\x12\x18.distribuq.GetDLQRequest\x1a\x19.distribuq.GetDLQResponse\x12F\n" +
 	"\tReplayDLQ\x12\x1b.distribuq.ReplayDLQRequest\x1a\x1c.distribuq.ReplayDLQResponse\x12C\n" +
-	"\bPurgeDLQ\x12\x1a.distribuq.PurgeDLQRequest\x1a\x1b.distribuq.PurgeDLQResponse2]\n" +
+	"\bPurgeDLQ\x12\x1a.distribuq.PurgeDLQRequest\x1a\x1b.distribuq.PurgeDLQResponse\x12@\n" +
+	"\aAddPeer\x12\x19.distribuq.AddPeerRequest\x1a\x1a.distribuq.AddPeerResponse\x12I\n" +
+	"\n" +
+	"RemovePeer\x12\x1c.distribuq.RemovePeerRequest\x1a\x1d.distribuq.RemovePeerResponse\x12a\n" +
+	"\x14GetClusterMembership\x12#.distribuq.ClusterMembershipRequest\x1a$.distribuq.ClusterMembershipResponse2]\n" +
 	"\rWorkerService\x12L\n" +
 	"\vExecuteTask\x12\x1d.distribuq.ExecuteTaskRequest\x1a\x1e.distribuq.ExecuteTaskResponseB0Z.github.com/Tiya-Garg/DistribuQ/proto;distribuqb\x06proto3"
 
@@ -1908,44 +2248,50 @@ func file_proto_distribuq_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_distribuq_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_proto_distribuq_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
+var file_proto_distribuq_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
 var file_proto_distribuq_proto_goTypes = []any{
-	(TaskState)(0),                  // 0: distribuq.TaskState
-	(*LogEntry)(nil),                // 1: distribuq.LogEntry
-	(*RequestVoteRequest)(nil),      // 2: distribuq.RequestVoteRequest
-	(*RequestVoteResponse)(nil),     // 3: distribuq.RequestVoteResponse
-	(*AppendEntriesRequest)(nil),    // 4: distribuq.AppendEntriesRequest
-	(*AppendEntriesResponse)(nil),   // 5: distribuq.AppendEntriesResponse
-	(*InstallSnapshotRequest)(nil),  // 6: distribuq.InstallSnapshotRequest
-	(*InstallSnapshotResponse)(nil), // 7: distribuq.InstallSnapshotResponse
-	(*RegisterWorkerRequest)(nil),   // 8: distribuq.RegisterWorkerRequest
-	(*RegisterWorkerResponse)(nil),  // 9: distribuq.RegisterWorkerResponse
-	(*HeartbeatRequest)(nil),        // 10: distribuq.HeartbeatRequest
-	(*HeartbeatResponse)(nil),       // 11: distribuq.HeartbeatResponse
-	(*SubmitTaskRequest)(nil),       // 12: distribuq.SubmitTaskRequest
-	(*SubmitTaskResponse)(nil),      // 13: distribuq.SubmitTaskResponse
-	(*CompleteTaskRequest)(nil),     // 14: distribuq.CompleteTaskRequest
-	(*CompleteTaskResponse)(nil),    // 15: distribuq.CompleteTaskResponse
-	(*FailTaskRequest)(nil),         // 16: distribuq.FailTaskRequest
-	(*FailTaskResponse)(nil),        // 17: distribuq.FailTaskResponse
-	(*GetStatusRequest)(nil),        // 18: distribuq.GetStatusRequest
-	(*GetStatusResponse)(nil),       // 19: distribuq.GetStatusResponse
-	(*DrainWorkerRequest)(nil),      // 20: distribuq.DrainWorkerRequest
-	(*DrainWorkerResponse)(nil),     // 21: distribuq.DrainWorkerResponse
-	(*TaskInfo)(nil),                // 22: distribuq.TaskInfo
-	(*ReplayDLQRequest)(nil),        // 23: distribuq.ReplayDLQRequest
-	(*ReplayDLQResponse)(nil),       // 24: distribuq.ReplayDLQResponse
-	(*PurgeDLQRequest)(nil),         // 25: distribuq.PurgeDLQRequest
-	(*PurgeDLQResponse)(nil),        // 26: distribuq.PurgeDLQResponse
-	(*GetDLQRequest)(nil),           // 27: distribuq.GetDLQRequest
-	(*GetDLQResponse)(nil),          // 28: distribuq.GetDLQResponse
-	(*ExecuteTaskRequest)(nil),      // 29: distribuq.ExecuteTaskRequest
-	(*ExecuteTaskResponse)(nil),     // 30: distribuq.ExecuteTaskResponse
-	nil,                             // 31: distribuq.GetStatusResponse.TasksEntry
+	(TaskState)(0),                    // 0: distribuq.TaskState
+	(*LogEntry)(nil),                  // 1: distribuq.LogEntry
+	(*RequestVoteRequest)(nil),        // 2: distribuq.RequestVoteRequest
+	(*RequestVoteResponse)(nil),       // 3: distribuq.RequestVoteResponse
+	(*AppendEntriesRequest)(nil),      // 4: distribuq.AppendEntriesRequest
+	(*AppendEntriesResponse)(nil),     // 5: distribuq.AppendEntriesResponse
+	(*InstallSnapshotRequest)(nil),    // 6: distribuq.InstallSnapshotRequest
+	(*InstallSnapshotResponse)(nil),   // 7: distribuq.InstallSnapshotResponse
+	(*RegisterWorkerRequest)(nil),     // 8: distribuq.RegisterWorkerRequest
+	(*RegisterWorkerResponse)(nil),    // 9: distribuq.RegisterWorkerResponse
+	(*HeartbeatRequest)(nil),          // 10: distribuq.HeartbeatRequest
+	(*HeartbeatResponse)(nil),         // 11: distribuq.HeartbeatResponse
+	(*SubmitTaskRequest)(nil),         // 12: distribuq.SubmitTaskRequest
+	(*SubmitTaskResponse)(nil),        // 13: distribuq.SubmitTaskResponse
+	(*CompleteTaskRequest)(nil),       // 14: distribuq.CompleteTaskRequest
+	(*CompleteTaskResponse)(nil),      // 15: distribuq.CompleteTaskResponse
+	(*FailTaskRequest)(nil),           // 16: distribuq.FailTaskRequest
+	(*FailTaskResponse)(nil),          // 17: distribuq.FailTaskResponse
+	(*GetStatusRequest)(nil),          // 18: distribuq.GetStatusRequest
+	(*GetStatusResponse)(nil),         // 19: distribuq.GetStatusResponse
+	(*DrainWorkerRequest)(nil),        // 20: distribuq.DrainWorkerRequest
+	(*DrainWorkerResponse)(nil),       // 21: distribuq.DrainWorkerResponse
+	(*TaskInfo)(nil),                  // 22: distribuq.TaskInfo
+	(*ReplayDLQRequest)(nil),          // 23: distribuq.ReplayDLQRequest
+	(*ReplayDLQResponse)(nil),         // 24: distribuq.ReplayDLQResponse
+	(*PurgeDLQRequest)(nil),           // 25: distribuq.PurgeDLQRequest
+	(*PurgeDLQResponse)(nil),          // 26: distribuq.PurgeDLQResponse
+	(*GetDLQRequest)(nil),             // 27: distribuq.GetDLQRequest
+	(*GetDLQResponse)(nil),            // 28: distribuq.GetDLQResponse
+	(*AddPeerRequest)(nil),            // 29: distribuq.AddPeerRequest
+	(*AddPeerResponse)(nil),           // 30: distribuq.AddPeerResponse
+	(*RemovePeerRequest)(nil),         // 31: distribuq.RemovePeerRequest
+	(*RemovePeerResponse)(nil),        // 32: distribuq.RemovePeerResponse
+	(*ClusterMembershipRequest)(nil),  // 33: distribuq.ClusterMembershipRequest
+	(*ClusterMembershipResponse)(nil), // 34: distribuq.ClusterMembershipResponse
+	(*ExecuteTaskRequest)(nil),        // 35: distribuq.ExecuteTaskRequest
+	(*ExecuteTaskResponse)(nil),       // 36: distribuq.ExecuteTaskResponse
+	nil,                               // 37: distribuq.GetStatusResponse.TasksEntry
 }
 var file_proto_distribuq_proto_depIdxs = []int32{
 	1,  // 0: distribuq.AppendEntriesRequest.entries:type_name -> distribuq.LogEntry
-	31, // 1: distribuq.GetStatusResponse.tasks:type_name -> distribuq.GetStatusResponse.TasksEntry
+	37, // 1: distribuq.GetStatusResponse.tasks:type_name -> distribuq.GetStatusResponse.TasksEntry
 	22, // 2: distribuq.GetDLQResponse.tasks:type_name -> distribuq.TaskInfo
 	2,  // 3: distribuq.RaftService.RequestVote:input_type -> distribuq.RequestVoteRequest
 	4,  // 4: distribuq.RaftService.AppendEntries:input_type -> distribuq.AppendEntriesRequest
@@ -1960,23 +2306,29 @@ var file_proto_distribuq_proto_depIdxs = []int32{
 	27, // 13: distribuq.SchedulerService.GetDLQ:input_type -> distribuq.GetDLQRequest
 	23, // 14: distribuq.SchedulerService.ReplayDLQ:input_type -> distribuq.ReplayDLQRequest
 	25, // 15: distribuq.SchedulerService.PurgeDLQ:input_type -> distribuq.PurgeDLQRequest
-	29, // 16: distribuq.WorkerService.ExecuteTask:input_type -> distribuq.ExecuteTaskRequest
-	3,  // 17: distribuq.RaftService.RequestVote:output_type -> distribuq.RequestVoteResponse
-	5,  // 18: distribuq.RaftService.AppendEntries:output_type -> distribuq.AppendEntriesResponse
-	7,  // 19: distribuq.RaftService.InstallSnapshot:output_type -> distribuq.InstallSnapshotResponse
-	9,  // 20: distribuq.SchedulerService.RegisterWorker:output_type -> distribuq.RegisterWorkerResponse
-	21, // 21: distribuq.SchedulerService.DrainWorker:output_type -> distribuq.DrainWorkerResponse
-	11, // 22: distribuq.SchedulerService.Heartbeat:output_type -> distribuq.HeartbeatResponse
-	13, // 23: distribuq.SchedulerService.SubmitTask:output_type -> distribuq.SubmitTaskResponse
-	15, // 24: distribuq.SchedulerService.CompleteTask:output_type -> distribuq.CompleteTaskResponse
-	17, // 25: distribuq.SchedulerService.FailTask:output_type -> distribuq.FailTaskResponse
-	19, // 26: distribuq.SchedulerService.GetStatus:output_type -> distribuq.GetStatusResponse
-	28, // 27: distribuq.SchedulerService.GetDLQ:output_type -> distribuq.GetDLQResponse
-	24, // 28: distribuq.SchedulerService.ReplayDLQ:output_type -> distribuq.ReplayDLQResponse
-	26, // 29: distribuq.SchedulerService.PurgeDLQ:output_type -> distribuq.PurgeDLQResponse
-	30, // 30: distribuq.WorkerService.ExecuteTask:output_type -> distribuq.ExecuteTaskResponse
-	17, // [17:31] is the sub-list for method output_type
-	3,  // [3:17] is the sub-list for method input_type
+	29, // 16: distribuq.SchedulerService.AddPeer:input_type -> distribuq.AddPeerRequest
+	31, // 17: distribuq.SchedulerService.RemovePeer:input_type -> distribuq.RemovePeerRequest
+	33, // 18: distribuq.SchedulerService.GetClusterMembership:input_type -> distribuq.ClusterMembershipRequest
+	35, // 19: distribuq.WorkerService.ExecuteTask:input_type -> distribuq.ExecuteTaskRequest
+	3,  // 20: distribuq.RaftService.RequestVote:output_type -> distribuq.RequestVoteResponse
+	5,  // 21: distribuq.RaftService.AppendEntries:output_type -> distribuq.AppendEntriesResponse
+	7,  // 22: distribuq.RaftService.InstallSnapshot:output_type -> distribuq.InstallSnapshotResponse
+	9,  // 23: distribuq.SchedulerService.RegisterWorker:output_type -> distribuq.RegisterWorkerResponse
+	21, // 24: distribuq.SchedulerService.DrainWorker:output_type -> distribuq.DrainWorkerResponse
+	11, // 25: distribuq.SchedulerService.Heartbeat:output_type -> distribuq.HeartbeatResponse
+	13, // 26: distribuq.SchedulerService.SubmitTask:output_type -> distribuq.SubmitTaskResponse
+	15, // 27: distribuq.SchedulerService.CompleteTask:output_type -> distribuq.CompleteTaskResponse
+	17, // 28: distribuq.SchedulerService.FailTask:output_type -> distribuq.FailTaskResponse
+	19, // 29: distribuq.SchedulerService.GetStatus:output_type -> distribuq.GetStatusResponse
+	28, // 30: distribuq.SchedulerService.GetDLQ:output_type -> distribuq.GetDLQResponse
+	24, // 31: distribuq.SchedulerService.ReplayDLQ:output_type -> distribuq.ReplayDLQResponse
+	26, // 32: distribuq.SchedulerService.PurgeDLQ:output_type -> distribuq.PurgeDLQResponse
+	30, // 33: distribuq.SchedulerService.AddPeer:output_type -> distribuq.AddPeerResponse
+	32, // 34: distribuq.SchedulerService.RemovePeer:output_type -> distribuq.RemovePeerResponse
+	34, // 35: distribuq.SchedulerService.GetClusterMembership:output_type -> distribuq.ClusterMembershipResponse
+	36, // 36: distribuq.WorkerService.ExecuteTask:output_type -> distribuq.ExecuteTaskResponse
+	20, // [20:37] is the sub-list for method output_type
+	3,  // [3:20] is the sub-list for method input_type
 	3,  // [3:3] is the sub-list for extension type_name
 	3,  // [3:3] is the sub-list for extension extendee
 	0,  // [0:3] is the sub-list for field type_name
@@ -1993,7 +2345,7 @@ func file_proto_distribuq_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_distribuq_proto_rawDesc), len(file_proto_distribuq_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   31,
+			NumMessages:   37,
 			NumExtensions: 0,
 			NumServices:   3,
 		},
