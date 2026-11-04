@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Tiya-Garg/DistribuQ/internal/security"
 	"github.com/Tiya-Garg/DistribuQ/internal/worker"
 	pb "github.com/Tiya-Garg/DistribuQ/proto"
 	"google.golang.org/grpc"
@@ -26,6 +27,10 @@ func main() {
 	timeout := flag.Duration("timeout", worker.DefaultExecTimeout, "max duration a single task's command may run before being killed")
 	tagsFlag := flag.String("tags", "", "comma-separated capability tags (e.g. gpu,highmem)")
 	maxConcurrent := flag.Int("max-concurrent", 0, "max concurrent task executions (0 = uncapped)")
+	caCert := flag.String("ca-cert", "", "path to CA root certificate for mTLS")
+	tlsCert := flag.String("tls-cert", "", "path to worker TLS certificate for mTLS")
+	tlsKey := flag.String("tls-key", "", "path to worker TLS private key for mTLS")
+	serverName := flag.String("server-name", "localhost", "expected scheduler TLS server name (SAN) for dial verification")
 	flag.Parse()
 
 	if *id == "" {
@@ -51,6 +56,18 @@ func main() {
 		}
 	}
 
+	tlsCfg := &security.TLSConfig{
+		CACertPath: *caCert,
+		CertPath:   *tlsCert,
+		KeyPath:    *tlsKey,
+		ServerName: *serverName,
+	}
+
+	dialOpt, err := tlsCfg.DialOption()
+	if err != nil {
+		log.Fatalf("failed to configure TLS dial options: %v", err)
+	}
+
 	w := &worker.Worker{
 		ID:             *id,
 		SchedulerAddr:  schedulerAddrs[0],
@@ -58,10 +75,21 @@ func main() {
 		Addr:           *addr,
 		Tags:           tags,
 		MaxConcurrent:  *maxConcurrent,
+		DialOpt:        dialOpt,
 		Execute:        worker.NewShellExecutor(*id, *timeout),
 	}
 
-	server := grpc.NewServer()
+	var srvOpts []grpc.ServerOption
+	if tlsCfg.IsEnabled() {
+		srvOpt, err := tlsCfg.ServerOption()
+		if err != nil {
+			log.Fatalf("failed to configure TLS server option: %v", err)
+		}
+		srvOpts = append(srvOpts, srvOpt)
+		log.Printf("[%s] mTLS enabled for worker service (CA: %s)", *id, *caCert)
+	}
+
+	server := grpc.NewServer(srvOpts...)
 	pb.RegisterWorkerServiceServer(server, worker.NewGRPCWorkerServer(w))
 
 	listener, err := net.Listen("tcp", *addr)
