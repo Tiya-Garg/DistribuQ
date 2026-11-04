@@ -46,6 +46,7 @@ func main() {
 	delay := flag.Duration("delay", 0, "optional execution delay before task runs (e.g. 5s, 1m)")
 	runAtFlag := flag.String("run-at", "", "optional execution timestamp (RFC3339 format, e.g. 2026-11-04T18:00:00Z)")
 	dependsOnFlag := flag.String("depends-on", "", "optional comma-separated list of parent task IDs that must complete first")
+	idempotencyKey := flag.String("idempotency-key", "", "optional deduplication key to prevent duplicate executions across retries")
 	cancelFlag := flag.Bool("cancel", false, "cancel/abort a task by ID")
 	replayDLQ := flag.Bool("replay-dlq", false, "replay task from DLQ back into active queue")
 	purgeDLQ := flag.Bool("purge-dlq", false, "purge task from DLQ")
@@ -133,16 +134,21 @@ func main() {
 			}
 		} else {
 			resp, sErr := client.SubmitTask(ctx, &pb.SubmitTaskRequest{
-				TaskId:      *id,
-				Payload:     *payload,
-				Priority:    priority,
-				RequiredTag: *tagFlag,
-				RunAtUnixMs: runAtUnixMs,
-				DependsOn:   dependsOn,
+				TaskId:         *id,
+				Payload:        *payload,
+				Priority:       priority,
+				RequiredTag:    *tagFlag,
+				RunAtUnixMs:    runAtUnixMs,
+				DependsOn:      dependsOn,
+				IdempotencyKey: *idempotencyKey,
 			})
 			callErr = sErr
 			if callErr == nil {
-				log.Printf("submitted task %s to %s: ok=%v", *id, addr, resp.Ok)
+				if resp.TaskId != "" && resp.TaskId != *id {
+					log.Printf("task deduplicated (idempotency key %q matched original task %s) on %s", *idempotencyKey, resp.TaskId, addr)
+				} else {
+					log.Printf("submitted task %s to %s: ok=%v", *id, addr, resp.Ok)
+				}
 			}
 		}
 		cancel()
