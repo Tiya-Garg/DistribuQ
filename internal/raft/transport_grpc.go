@@ -17,14 +17,24 @@ type GRPCTransport struct {
 	peerAddrs map[string]string
 	conns     map[string]*grpc.ClientConn
 	clients   map[string]pb.RaftServiceClient
+	dialOpt   grpc.DialOption
 }
 
 // NewGRPCTransport returns a Transport backed by gRPC.
 func NewGRPCTransport(peerAddrs map[string]string) *GRPCTransport {
+	return NewGRPCTransportWithDialOpt(peerAddrs, nil)
+}
+
+// NewGRPCTransportWithDialOpt returns a Transport backed by gRPC using a custom dial option (e.g. mTLS).
+func NewGRPCTransportWithDialOpt(peerAddrs map[string]string, dialOpt grpc.DialOption) *GRPCTransport {
+	if dialOpt == nil {
+		dialOpt = grpc.WithTransportCredentials(insecure.NewCredentials())
+	}
 	return &GRPCTransport{
 		peerAddrs: peerAddrs,
 		conns:     make(map[string]*grpc.ClientConn),
 		clients:   make(map[string]pb.RaftServiceClient),
+		dialOpt:   dialOpt,
 	}
 }
 
@@ -41,7 +51,7 @@ func (t *GRPCTransport) client(peerID string) (pb.RaftServiceClient, error) {
 		return nil, fmt.Errorf("raft: unknown peer %q", peerID)
 	}
 
-	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(addr, t.dialOpt)
 	if err != nil {
 		return nil, err
 	}
