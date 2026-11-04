@@ -45,11 +45,13 @@ Every state transition is first committed as a log entry to a majority of schedu
 ## Running locally
 
 ```bash
-# terminal 1–3: three-node scheduler cluster (with durable state)
+# terminal 1–3: three-node scheduler cluster (with durable state and optional web dashboard)
 mkdir -p /tmp/distribuq-state
-go run ./cmd/scheduler -id s1 -addr :8000 -peers s2=:8001,s3=:8002 -data-dir /tmp/distribuq-state
+go run ./cmd/scheduler -id s1 -addr :8000 -peers s2=:8001,s3=:8002 -data-dir /tmp/distribuq-state -http :8080
 go run ./cmd/scheduler -id s2 -addr :8001 -peers s1=:8000,s3=:8002 -data-dir /tmp/distribuq-state
 go run ./cmd/scheduler -id s3 -addr :8002 -peers s1=:8000,s2=:8001 -data-dir /tmp/distribuq-state
+
+# open web dashboard in browser: http://localhost:8080
 
 # terminals 4 and 5: workers register with every replica so failover is seamless
 go run ./cmd/worker -id w1 -addr :9001 -scheduler localhost:8000,localhost:8001,localhost:8002
@@ -124,6 +126,8 @@ This is a portfolio/learning prototype. Known gaps:
 - [x] GitHub Actions CI with race detector and chaos test
 - [x] Log compaction / snapshotting (Raft §7 log truncation, InstallSnapshot RPC, and durable snapshots)
 - [x] Swap `net/rpc` for gRPC (Protobuf schemas, Raft/Scheduler/Worker gRPC transports)
+- [x] Multi-level priority task scheduling (CRITICAL, HIGH, NORMAL, LOW with preemption)
+- [x] Real-time live web dashboard & cluster monitor (embedded dark-mode UI with Server-Sent Events)
 
 ## License
 
