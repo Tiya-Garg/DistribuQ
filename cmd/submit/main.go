@@ -42,6 +42,7 @@ func main() {
 	id := flag.String("id", "", "task id (required)")
 	payload := flag.String("payload", "hello", "task payload")
 	priorityFlag := flag.String("priority", "normal", "task priority: low, normal, high, critical (or 0-3)")
+	tagFlag := flag.String("tag", "", "optional required worker capability tag (e.g. gpu, highmem)")
 	flag.Parse()
 
 	if *id == "" {
@@ -68,9 +69,10 @@ func main() {
 		client := pb.NewSchedulerServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		resp, callErr := client.SubmitTask(ctx, &pb.SubmitTaskRequest{
-			TaskId:   *id,
-			Payload:  *payload,
-			Priority: priority,
+			TaskId:      *id,
+			Payload:     *payload,
+			Priority:    priority,
+			RequiredTag: *tagFlag,
 		})
 		cancel()
 		conn.Close()
