@@ -28,6 +28,7 @@ const (
 	TaskCompleted TaskStatus = "completed"
 	TaskFailed    TaskStatus = "failed"
 	TaskDLQ       TaskStatus = "dlq"
+	TaskScheduled TaskStatus = "scheduled"
 )
 
 type Task struct {
@@ -41,6 +42,7 @@ type Task struct {
 	RequiredTag string
 	LastError   string
 	NextRetryAt time.Time
+	RunAt       time.Time
 
 	// seq is the task's submission order, used to dispatch tasks that
 	// were left queued in first-come, first-served order.
@@ -287,6 +289,11 @@ func (s *Scheduler) SubmitTaskWithPriority(id, payload string, priority int) (*T
 
 // SubmitTaskWithOpts queues a task with priority and capability requirements.
 func (s *Scheduler) SubmitTaskWithOpts(id, payload string, priority int, requiredTag string) (*Task, error) {
+	return s.SubmitTaskFull(id, payload, priority, requiredTag, time.Time{})
+}
+
+// SubmitTaskFull queues a task with priority, capability tags, and optional scheduled execution time.
+func (s *Scheduler) SubmitTaskFull(id, payload string, priority int, requiredTag string, runAt time.Time) (*Task, error) {
 	if id == "" {
 		return nil, ErrEmptyTaskID
 	}
@@ -296,25 +303,40 @@ func (s *Scheduler) SubmitTaskWithOpts(id, payload string, priority int, require
 		s.mu.Unlock()
 		return nil, ErrDuplicateTask
 	}
+
+	status := TaskQueued
+	now := time.Now()
+	if !runAt.IsZero() && runAt.After(now) {
+		status = TaskScheduled
+	}
+
 	proposer := s.proposer
 	if proposer == nil {
 		s.nextSeq++
 		task := &Task{
 			ID:          id,
 			Payload:     payload,
-			Status:      TaskQueued,
+			Status:      status,
 			MaxRetries:  3,
 			Priority:    priority,
 			RequiredTag: requiredTag,
+			RunAt:       runAt,
 			seq:         s.nextSeq,
 		}
 		s.tasks[id] = task
 		s.mu.Unlock()
 
-		_ = s.dispatch(task)
+		if status == TaskQueued {
+			_ = s.dispatch(task)
+		}
 		return task, nil
 	}
 	s.mu.Unlock()
+
+	var runAtUnixMs int64
+	if !runAt.IsZero() {
+		runAtUnixMs = runAt.UnixMilli()
+	}
 
 	_, _, commitCh, err := proposer.Propose(raft.LogEntry{
 		Type:        raft.CmdSubmit,
@@ -322,6 +344,7 @@ func (s *Scheduler) SubmitTaskWithOpts(id, payload string, priority int, require
 		Payload:     payload,
 		Priority:    priority,
 		RequiredTag: requiredTag,
+		RunAtUnixMs: runAtUnixMs,
 	})
 	if err != nil {
 		return nil, err
@@ -340,7 +363,7 @@ func (s *Scheduler) SubmitTaskWithOpts(id, payload string, priority int, require
 	task := s.tasks[id]
 	s.mu.Unlock()
 
-	if task != nil {
+	if task != nil && task.Status == TaskQueued {
 		_ = s.dispatch(task)
 	}
 	return task, nil
@@ -806,6 +829,11 @@ func (s *Scheduler) dispatchQueued() {
 	now := time.Now()
 	var queued []*Task
 	for _, t := range s.tasks {
+		if t.Status == TaskScheduled {
+			if !t.RunAt.IsZero() && !now.Before(t.RunAt) {
+				t.Status = TaskQueued
+			}
+		}
 		if t.Status == TaskQueued {
 			if !t.NextRetryAt.IsZero() && now.Before(t.NextRetryAt) {
 				continue // backoff delay has not elapsed yet
@@ -912,6 +940,7 @@ type TaskView struct {
 	Priority    int        `json:"priority"`
 	RequiredTag string     `json:"required_tag,omitempty"`
 	LastError   string     `json:"last_error,omitempty"`
+	RunAt       time.Time  `json:"run_at,omitempty"`
 	Seq         uint64     `json:"seq"`
 }
 
@@ -944,6 +973,7 @@ func (s *Scheduler) DetailedStatus() (tasks []TaskView, workers []WorkerView) {
 			Priority:    t.Priority,
 			RequiredTag: t.RequiredTag,
 			LastError:   t.LastError,
+			RunAt:       t.RunAt,
 			Seq:         t.seq,
 		})
 	}
@@ -989,6 +1019,7 @@ type TaskSnapshot struct {
 	Priority    int        `json:"priority,omitempty"`
 	RequiredTag string     `json:"required_tag,omitempty"`
 	LastError   string     `json:"last_error,omitempty"`
+	RunAt       time.Time  `json:"run_at,omitempty"`
 }
 
 type schedulerSnapshotData struct {
@@ -1014,6 +1045,7 @@ func (s *Scheduler) EncodeState() ([]byte, error) {
 			Priority:    t.Priority,
 			RequiredTag: t.RequiredTag,
 			LastError:   t.LastError,
+			RunAt:       t.RunAt,
 		}
 	}
 	return json.Marshal(schedulerSnapshotData{
@@ -1047,6 +1079,7 @@ func (s *Scheduler) RestoreFromSnapshot(data []byte) error {
 			Priority:    ts.Priority,
 			RequiredTag: ts.RequiredTag,
 			LastError:   ts.LastError,
+			RunAt:       ts.RunAt,
 			seq:         ts.Seq,
 			tried:       make(map[string]bool),
 		}
@@ -1067,12 +1100,21 @@ func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
 	case raft.CmdSubmit:
 		if _, exists := s.tasks[entry.TaskID]; !exists {
 			s.nextSeq++
+			status := TaskQueued
+			var runAt time.Time
+			if entry.RunAtUnixMs > 0 {
+				runAt = time.UnixMilli(entry.RunAtUnixMs)
+				if runAt.After(time.Now()) {
+					status = TaskScheduled
+				}
+			}
 			s.tasks[entry.TaskID] = &Task{
 				ID:          entry.TaskID,
 				Payload:     entry.Payload,
-				Status:      TaskQueued,
+				Status:      status,
 				Priority:    entry.Priority,
 				RequiredTag: entry.RequiredTag,
+				RunAt:       runAt,
 				MaxRetries:  3,
 				seq:         s.nextSeq,
 			}
