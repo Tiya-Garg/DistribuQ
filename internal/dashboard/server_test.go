@@ -160,3 +160,24 @@ func TestDashboardEventsSSE(t *testing.T) {
 		t.Errorf("expected SSE data line, got %s", line)
 	}
 }
+
+func TestDashboardMetricsEndpoint(t *testing.T) {
+	srv, _, sched := setupTestServer(t)
+	sched.RegisterWorker("w1", "127.0.0.1:9001")
+	_, _ = sched.SubmitTask("m-task-1", "echo 1")
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rec := httptest.NewRecorder()
+
+	srv.handleMetrics(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "distribuq_tasks_submitted_total") {
+		t.Errorf("metrics response missing expected counter: %s", body)
+	}
+	if !strings.Contains(body, "distribuq_workers_count") {
+		t.Errorf("metrics response missing expected gauge: %s", body)
+	}
+}

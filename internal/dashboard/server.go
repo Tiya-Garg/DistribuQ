@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Tiya-Garg/DistribuQ/internal/metrics"
 	"github.com/Tiya-Garg/DistribuQ/internal/raft"
 	"github.com/Tiya-Garg/DistribuQ/internal/scheduler"
 )
@@ -68,6 +69,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/status", s.handleStatus)
 	mux.HandleFunc("/api/events", s.handleEvents)
 	mux.HandleFunc("/api/submit", s.handleSubmit)
+	mux.HandleFunc("/metrics", s.handleMetrics)
 
 	ln, err := net.Listen("tcp", s.httpAddr)
 	if err != nil {
@@ -225,6 +227,40 @@ func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request) {
 		"ok": true,
 	})
 	s.broadcast()
+}
+
+func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	tasks, workers := s.sched.DetailedStatus()
+	queued := 0.0
+	running := 0.0
+	scheduled := 0.0
+	dlq := 0.0
+
+	for _, t := range tasks {
+		switch t.Status {
+		case scheduler.TaskQueued:
+			queued++
+		case scheduler.TaskAssigned, scheduler.TaskRunning:
+			running++
+		case scheduler.TaskScheduled:
+			scheduled++
+		case scheduler.TaskDLQ:
+			dlq++
+		}
+	}
+
+	gauges := map[string]float64{
+		"distribuq_workers_count":     float64(len(workers)),
+		"distribuq_tasks_queued":      queued,
+		"distribuq_tasks_running":     running,
+		"distribuq_tasks_scheduled":   scheduled,
+		"distribuq_tasks_dlq":         dlq,
+		"distribuq_raft_term":         float64(s.node.Term()),
+		"distribuq_raft_commit_index": float64(s.node.CommitIndex()),
+	}
+
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	metrics.DefaultRegistry.WritePrometheus(w, gauges)
 }
 
 func (s *Server) broadcast() {
