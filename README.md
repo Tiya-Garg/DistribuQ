@@ -53,12 +53,12 @@ go run ./cmd/scheduler -id s3 -addr :8002 -peers s1=:8000,s2=:8001 -data-dir /tm
 
 # open web dashboard in browser: http://localhost:8080
 
-# terminals 4 and 5: workers register with every replica so failover is seamless
-go run ./cmd/worker -id w1 -addr :9001 -scheduler localhost:8000,localhost:8001,localhost:8002
-go run ./cmd/worker -id w2 -addr :9002 -scheduler localhost:8000,localhost:8001,localhost:8002
+# terminals 4 and 5: workers register with every replica so failover is seamless (supports tags and concurrency limits)
+go run ./cmd/worker -id w1 -addr :9001 -scheduler localhost:8000,localhost:8001,localhost:8002 -tags gpu,highmem -max-concurrent 4
+go run ./cmd/worker -id w2 -addr :9002 -scheduler localhost:8000,localhost:8001,localhost:8002 -tags general
 
-# terminal 6: submit a task (payload is run as a shell command by the worker)
-go run ./cmd/submit -id task1 -payload "echo hello && sleep 1" -schedulers localhost:8000,localhost:8001,localhost:8002
+# terminal 6: submit a task (supports priority and capability tags)
+go run ./cmd/submit -id task1 -payload "echo hello && sleep 1" -schedulers localhost:8000,localhost:8001,localhost:8002 -priority high -tag gpu
 
 # check cluster state (ask any replica)
 go run ./cmd/status -scheduler localhost:8000
@@ -128,6 +128,7 @@ This is a portfolio/learning prototype. Known gaps:
 - [x] Swap `net/rpc` for gRPC (Protobuf schemas, Raft/Scheduler/Worker gRPC transports)
 - [x] Multi-level priority task scheduling (CRITICAL, HIGH, NORMAL, LOW with preemption)
 - [x] Real-time live web dashboard & cluster monitor (embedded dark-mode UI with Server-Sent Events)
+- [x] Dynamic worker registration, capability tags, telemetry heartbeats & graceful drain
 
 ## License
 
