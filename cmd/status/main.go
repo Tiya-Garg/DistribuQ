@@ -17,6 +17,7 @@ import (
 
 func main() {
 	addr := flag.String("scheduler", "localhost:8000", "scheduler replica address to query")
+	showDLQ := flag.Bool("dlq", false, "display only Dead Letter Queue (DLQ) tasks with error reasons")
 	caCert := flag.String("ca-cert", "", "path to CA root certificate for mTLS")
 	tlsCert := flag.String("tls-cert", "", "path to client TLS certificate for mTLS")
 	tlsKey := flag.String("tls-key", "", "path to client TLS private key for mTLS")
@@ -44,6 +45,22 @@ func main() {
 	client := pb.NewSchedulerServiceClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
+
+	if *showDLQ {
+		dlqReply, err := client.GetDLQ(ctx, &pb.GetDLQRequest{})
+		if err != nil {
+			log.Fatalf("dlq query failed: %v", err)
+		}
+		if len(dlqReply.Tasks) == 0 {
+			fmt.Println("dlq: (empty)")
+			return
+		}
+		fmt.Printf("dlq tasks (%d):\n", len(dlqReply.Tasks))
+		for _, t := range dlqReply.Tasks {
+			fmt.Printf("  %-20s attempts=%d/%d priority=%d error=%q\n", t.Id, t.Attempts, t.MaxRetries, t.Priority, t.LastError)
+		}
+		return
+	}
 
 	reply, err := client.GetStatus(ctx, &pb.GetStatusRequest{})
 	if err != nil {
