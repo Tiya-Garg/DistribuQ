@@ -22,12 +22,23 @@ func (s *GRPCSchedulerServer) requireLeader() bool {
 }
 
 func (s *GRPCSchedulerServer) RegisterWorker(ctx context.Context, req *pb.RegisterWorkerRequest) (*pb.RegisterWorkerResponse, error) {
-	s.S.RegisterWorker(req.WorkerId, req.Addr)
+	s.S.RegisterWorkerWithOpts(req.WorkerId, req.Addr, req.Tags, int(req.MaxConcurrent))
 	return &pb.RegisterWorkerResponse{Ok: true}, nil
 }
 
+func (s *GRPCSchedulerServer) DrainWorker(ctx context.Context, req *pb.DrainWorkerRequest) (*pb.DrainWorkerResponse, error) {
+	err := s.S.DrainWorker(req.WorkerId)
+	if err != nil {
+		if errors.Is(err, ErrUnknownWorker) {
+			return nil, status.Error(codes.NotFound, err.Error())
+		}
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return &pb.DrainWorkerResponse{Ok: true}, nil
+}
+
 func (s *GRPCSchedulerServer) Heartbeat(ctx context.Context, req *pb.HeartbeatRequest) (*pb.HeartbeatResponse, error) {
-	err := s.S.Heartbeat(req.WorkerId)
+	err := s.S.HeartbeatWithTelemetry(req.WorkerId, int(req.ActiveTasks), req.CpuUsage)
 	if err != nil {
 		if errors.Is(err, ErrUnknownWorker) {
 			return nil, status.Error(codes.NotFound, err.Error())
@@ -41,7 +52,7 @@ func (s *GRPCSchedulerServer) SubmitTask(ctx context.Context, req *pb.SubmitTask
 	if !s.requireLeader() {
 		return nil, status.Error(codes.FailedPrecondition, ErrNotLeader.Error())
 	}
-	if _, err := s.S.SubmitTaskWithPriority(req.TaskId, req.Payload, int(req.Priority)); err != nil {
+	if _, err := s.S.SubmitTaskWithOpts(req.TaskId, req.Payload, int(req.Priority), req.RequiredTag); err != nil {
 		if errors.Is(err, ErrDuplicateTask) {
 			return nil, status.Error(codes.AlreadyExists, err.Error())
 		}
