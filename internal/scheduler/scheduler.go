@@ -516,8 +516,7 @@ func (s *Scheduler) pickWorkerLocked(avoid map[string]bool) *WorkerInfo {
 // pickWorkerForTaskLocked finds the best matching worker taking into account:
 // 1. Draining status (draining workers never receive new tasks)
 // 2. Required tag/capability match (if task specifies RequiredTag)
-// 3. Concurrency limits (w.MaxConcurrent)
-// 4. Lowest load (active tasks count and CPU telemetry)
+// 3. Lowest load (active tasks count and CPU telemetry)
 func (s *Scheduler) pickWorkerForTaskLocked(task *Task, avoid map[string]bool) *WorkerInfo {
 	var best, bestAvoided *WorkerInfo
 	now := time.Now()
@@ -527,9 +526,6 @@ func (s *Scheduler) pickWorkerForTaskLocked(task *Task, avoid map[string]bool) *
 		}
 		if w.Draining {
 			continue // worker is draining, do not schedule new tasks
-		}
-		if w.MaxConcurrent > 0 && len(w.ActiveTasks) >= w.MaxConcurrent {
-			continue // worker is at max concurrency capacity
 		}
 		if task != nil && task.RequiredTag != "" {
 			hasTag := false
