@@ -963,7 +963,9 @@ func (s *Scheduler) completeTask(taskID, workerID string, checkWorker bool) erro
 		if w, ok := s.workers[task.WorkerID]; ok {
 			delete(w.ActiveTasks, taskID)
 		}
+		s.resolveDependenciesLocked()
 		s.mu.Unlock()
+		s.sweepAsync()
 		metrics.DefaultRegistry.IncCompleted()
 		return nil
 	}
@@ -985,6 +987,7 @@ func (s *Scheduler) completeTask(taskID, workerID string, checkWorker bool) erro
 	case <-time.After(10 * time.Second):
 		return errors.New("scheduler: complete timed out waiting for commit")
 	}
+	s.sweepAsync()
 	metrics.DefaultRegistry.IncCompleted()
 	return nil
 }
@@ -1027,12 +1030,14 @@ func (s *Scheduler) failTask(taskID, workerID string, checkWorker bool) error {
 			delete(w.ActiveTasks, taskID)
 		}
 		s.requeueOrFailWithCauseLocked(task, "worker reported failure")
+		s.resolveDependenciesLocked()
 		requeued := task.Status == TaskQueued
 		s.mu.Unlock()
 
 		if requeued {
 			s.dispatch(task)
 		}
+		s.sweepAsync()
 		metrics.DefaultRegistry.IncFailed()
 		return nil
 	}
@@ -1056,6 +1061,7 @@ func (s *Scheduler) failTask(taskID, workerID string, checkWorker bool) error {
 		return errors.New("scheduler: fail timed out waiting for commit")
 	}
 
+	s.sweepAsync()
 	s.mu.Lock()
 	t := s.tasks[taskID]
 	requeued := t != nil && t.Status == TaskQueued
@@ -1283,6 +1289,7 @@ type TaskView struct {
 	RequiredTag string     `json:"required_tag,omitempty"`
 	LastError   string     `json:"last_error,omitempty"`
 	RunAt       time.Time  `json:"run_at,omitempty"`
+	DependsOn   []string   `json:"depends_on,omitempty"`
 	Seq         uint64     `json:"seq"`
 }
 
@@ -1316,6 +1323,7 @@ func (s *Scheduler) DetailedStatus() (tasks []TaskView, workers []WorkerView) {
 			RequiredTag: t.RequiredTag,
 			LastError:   t.LastError,
 			RunAt:       t.RunAt,
+			DependsOn:   t.DependsOn,
 			Seq:         t.seq,
 		})
 	}
@@ -1637,6 +1645,7 @@ func (s *Scheduler) GetDLQTasks() []TaskView {
 				Priority:    t.Priority,
 				RequiredTag: t.RequiredTag,
 				LastError:   t.LastError,
+				DependsOn:   t.DependsOn,
 				Seq:         t.seq,
 			})
 		}
