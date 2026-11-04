@@ -22,14 +22,15 @@ const (
 
 // LogEntry is an entry in the replicated Raft log representing a task event.
 type LogEntry struct {
-	Index    int         `json:"index"`
-	Term     int         `json:"term"`
-	Type     CommandType `json:"type"`
-	TaskID   string      `json:"task_id"`
-	Payload  string      `json:"payload,omitempty"`
-	WorkerID string      `json:"worker_id,omitempty"`
-	Cause    string      `json:"cause,omitempty"`
-	Priority int         `json:"priority,omitempty"`
+	Index       int         `json:"index"`
+	Term        int         `json:"term"`
+	Type        CommandType `json:"type"`
+	TaskID      string      `json:"task_id"`
+	Payload     string      `json:"payload,omitempty"`
+	WorkerID    string      `json:"worker_id,omitempty"`
+	Cause       string      `json:"cause,omitempty"`
+	Priority    int         `json:"priority,omitempty"`
+	RequiredTag string      `json:"required_tag,omitempty"`
 }
 
 // Persister durably stores the Raft state that must survive a restart:
