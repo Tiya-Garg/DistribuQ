@@ -71,8 +71,9 @@ func (s *GRPCSchedulerServer) SubmitTask(ctx context.Context, req *pb.SubmitTask
 	if req.RunAtUnixMs > 0 {
 		runAt = time.UnixMilli(req.RunAtUnixMs)
 	}
-	if _, err := s.S.SubmitTaskDAG(req.TaskId, req.Payload, int(req.Priority), req.RequiredTag, runAt, req.DependsOn); err != nil {
-		if errors.Is(err, ErrDuplicateTask) {
+	task, err := s.S.SubmitTaskIdempotent(req.TaskId, req.Payload, int(req.Priority), req.RequiredTag, runAt, req.DependsOn, req.IdempotencyKey)
+	if err != nil {
+		if errors.Is(err, ErrDuplicateTask) || errors.Is(err, ErrIdempotencyConflict) {
 			return nil, status.Error(codes.AlreadyExists, err.Error())
 		}
 		if errors.Is(err, ErrEmptyTaskID) || errors.Is(err, ErrCyclicDependency) {
@@ -80,7 +81,7 @@ func (s *GRPCSchedulerServer) SubmitTask(ctx context.Context, req *pb.SubmitTask
 		}
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	return &pb.SubmitTaskResponse{Ok: true}, nil
+	return &pb.SubmitTaskResponse{Ok: true, TaskId: task.ID}, nil
 }
 
 func (s *GRPCSchedulerServer) CancelTask(ctx context.Context, req *pb.CancelTaskRequest) (*pb.CancelTaskResponse, error) {
@@ -140,16 +141,17 @@ func (s *GRPCSchedulerServer) GetDLQ(ctx context.Context, req *pb.GetDLQRequest)
 	tasks := make([]*pb.TaskInfo, 0, len(dlq))
 	for _, t := range dlq {
 		tasks = append(tasks, &pb.TaskInfo{
-			Id:          t.ID,
-			Payload:     t.Payload,
-			Status:      string(t.Status),
-			WorkerId:    t.WorkerID,
-			Attempts:    int32(t.Attempts),
-			MaxRetries:  int32(t.MaxRetries),
-			Priority:    int32(t.Priority),
-			RequiredTag: t.RequiredTag,
-			LastError:   t.LastError,
-			DependsOn:   t.DependsOn,
+			Id:             t.ID,
+			Payload:        t.Payload,
+			Status:         string(t.Status),
+			WorkerId:       t.WorkerID,
+			Attempts:       int32(t.Attempts),
+			MaxRetries:     int32(t.MaxRetries),
+			Priority:       int32(t.Priority),
+			RequiredTag:    t.RequiredTag,
+			LastError:      t.LastError,
+			DependsOn:      t.DependsOn,
+			IdempotencyKey: t.IdempotencyKey,
 		})
 	}
 	return &pb.GetDLQResponse{Tasks: tasks}, nil
