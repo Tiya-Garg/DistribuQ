@@ -22,6 +22,7 @@ message LogEntry {
   string peer_id = 11;
   string peer_addr = 12;
   repeated string depends_on = 13;
+  string idempotency_key = 14;
 }
 
 message RequestVoteRequest {
@@ -103,10 +104,12 @@ message SubmitTaskRequest {
   string required_tag = 4;
   int64 run_at_unix_ms = 5;
   repeated string depends_on = 6;
+  string idempotency_key = 7;
 }
 
 message SubmitTaskResponse {
   bool ok = 1;
+  string task_id = 2;
 }
 
 message CompleteTaskRequest {
@@ -183,6 +186,7 @@ message TaskInfo {
   string last_error = 9;
   int64 run_at_unix_ms = 10;
   repeated string depends_on = 11;
+  string idempotency_key = 12;
 }
 
 message ReplayDLQRequest {

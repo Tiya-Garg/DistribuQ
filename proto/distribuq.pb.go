@@ -89,22 +89,23 @@ func (TaskState) EnumDescriptor() ([]byte, []int) {
 }
 
 type LogEntry struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Index         int64                  `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
-	Term          int64                  `protobuf:"varint,2,opt,name=term,proto3" json:"term,omitempty"`
-	Type          string                 `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`
-	TaskId        string                 `protobuf:"bytes,4,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
-	Payload       string                 `protobuf:"bytes,5,opt,name=payload,proto3" json:"payload,omitempty"`
-	WorkerId      string                 `protobuf:"bytes,6,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
-	Cause         string                 `protobuf:"bytes,7,opt,name=cause,proto3" json:"cause,omitempty"`
-	Priority      int32                  `protobuf:"varint,8,opt,name=priority,proto3" json:"priority,omitempty"`
-	RequiredTag   string                 `protobuf:"bytes,9,opt,name=required_tag,json=requiredTag,proto3" json:"required_tag,omitempty"`
-	RunAtUnixMs   int64                  `protobuf:"varint,10,opt,name=run_at_unix_ms,json=runAtUnixMs,proto3" json:"run_at_unix_ms,omitempty"`
-	PeerId        string                 `protobuf:"bytes,11,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
-	PeerAddr      string                 `protobuf:"bytes,12,opt,name=peer_addr,json=peerAddr,proto3" json:"peer_addr,omitempty"`
-	DependsOn     []string               `protobuf:"bytes,13,rep,name=depends_on,json=dependsOn,proto3" json:"depends_on,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Index          int64                  `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
+	Term           int64                  `protobuf:"varint,2,opt,name=term,proto3" json:"term,omitempty"`
+	Type           string                 `protobuf:"bytes,3,opt,name=type,proto3" json:"type,omitempty"`
+	TaskId         string                 `protobuf:"bytes,4,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	Payload        string                 `protobuf:"bytes,5,opt,name=payload,proto3" json:"payload,omitempty"`
+	WorkerId       string                 `protobuf:"bytes,6,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
+	Cause          string                 `protobuf:"bytes,7,opt,name=cause,proto3" json:"cause,omitempty"`
+	Priority       int32                  `protobuf:"varint,8,opt,name=priority,proto3" json:"priority,omitempty"`
+	RequiredTag    string                 `protobuf:"bytes,9,opt,name=required_tag,json=requiredTag,proto3" json:"required_tag,omitempty"`
+	RunAtUnixMs    int64                  `protobuf:"varint,10,opt,name=run_at_unix_ms,json=runAtUnixMs,proto3" json:"run_at_unix_ms,omitempty"`
+	PeerId         string                 `protobuf:"bytes,11,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	PeerAddr       string                 `protobuf:"bytes,12,opt,name=peer_addr,json=peerAddr,proto3" json:"peer_addr,omitempty"`
+	DependsOn      []string               `protobuf:"bytes,13,rep,name=depends_on,json=dependsOn,proto3" json:"depends_on,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,14,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *LogEntry) Reset() {
@@ -226,6 +227,13 @@ func (x *LogEntry) GetDependsOn() []string {
 		return x.DependsOn
 	}
 	return nil
+}
+
+func (x *LogEntry) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
 }
 
 type RequestVoteRequest struct {
@@ -845,15 +853,16 @@ func (x *HeartbeatResponse) GetOk() bool {
 }
 
 type SubmitTaskRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	TaskId        string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
-	Payload       string                 `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
-	Priority      int32                  `protobuf:"varint,3,opt,name=priority,proto3" json:"priority,omitempty"`
-	RequiredTag   string                 `protobuf:"bytes,4,opt,name=required_tag,json=requiredTag,proto3" json:"required_tag,omitempty"`
-	RunAtUnixMs   int64                  `protobuf:"varint,5,opt,name=run_at_unix_ms,json=runAtUnixMs,proto3" json:"run_at_unix_ms,omitempty"`
-	DependsOn     []string               `protobuf:"bytes,6,rep,name=depends_on,json=dependsOn,proto3" json:"depends_on,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	TaskId         string                 `protobuf:"bytes,1,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
+	Payload        string                 `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
+	Priority       int32                  `protobuf:"varint,3,opt,name=priority,proto3" json:"priority,omitempty"`
+	RequiredTag    string                 `protobuf:"bytes,4,opt,name=required_tag,json=requiredTag,proto3" json:"required_tag,omitempty"`
+	RunAtUnixMs    int64                  `protobuf:"varint,5,opt,name=run_at_unix_ms,json=runAtUnixMs,proto3" json:"run_at_unix_ms,omitempty"`
+	DependsOn      []string               `protobuf:"bytes,6,rep,name=depends_on,json=dependsOn,proto3" json:"depends_on,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,7,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *SubmitTaskRequest) Reset() {
@@ -928,9 +937,17 @@ func (x *SubmitTaskRequest) GetDependsOn() []string {
 	return nil
 }
 
+func (x *SubmitTaskRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
 type SubmitTaskResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	TaskId        string                 `protobuf:"bytes,2,opt,name=task_id,json=taskId,proto3" json:"task_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -970,6 +987,13 @@ func (x *SubmitTaskResponse) GetOk() bool {
 		return x.Ok
 	}
 	return false
+}
+
+func (x *SubmitTaskResponse) GetTaskId() string {
+	if x != nil {
+		return x.TaskId
+	}
+	return ""
 }
 
 type CompleteTaskRequest struct {
@@ -1525,20 +1549,21 @@ func (x *AbortTaskResponse) GetOk() bool {
 }
 
 type TaskInfo struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Payload       string                 `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
-	Status        string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
-	WorkerId      string                 `protobuf:"bytes,4,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
-	Attempts      int32                  `protobuf:"varint,5,opt,name=attempts,proto3" json:"attempts,omitempty"`
-	MaxRetries    int32                  `protobuf:"varint,6,opt,name=max_retries,json=maxRetries,proto3" json:"max_retries,omitempty"`
-	Priority      int32                  `protobuf:"varint,7,opt,name=priority,proto3" json:"priority,omitempty"`
-	RequiredTag   string                 `protobuf:"bytes,8,opt,name=required_tag,json=requiredTag,proto3" json:"required_tag,omitempty"`
-	LastError     string                 `protobuf:"bytes,9,opt,name=last_error,json=lastError,proto3" json:"last_error,omitempty"`
-	RunAtUnixMs   int64                  `protobuf:"varint,10,opt,name=run_at_unix_ms,json=runAtUnixMs,proto3" json:"run_at_unix_ms,omitempty"`
-	DependsOn     []string               `protobuf:"bytes,11,rep,name=depends_on,json=dependsOn,proto3" json:"depends_on,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Payload        string                 `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
+	Status         string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
+	WorkerId       string                 `protobuf:"bytes,4,opt,name=worker_id,json=workerId,proto3" json:"worker_id,omitempty"`
+	Attempts       int32                  `protobuf:"varint,5,opt,name=attempts,proto3" json:"attempts,omitempty"`
+	MaxRetries     int32                  `protobuf:"varint,6,opt,name=max_retries,json=maxRetries,proto3" json:"max_retries,omitempty"`
+	Priority       int32                  `protobuf:"varint,7,opt,name=priority,proto3" json:"priority,omitempty"`
+	RequiredTag    string                 `protobuf:"bytes,8,opt,name=required_tag,json=requiredTag,proto3" json:"required_tag,omitempty"`
+	LastError      string                 `protobuf:"bytes,9,opt,name=last_error,json=lastError,proto3" json:"last_error,omitempty"`
+	RunAtUnixMs    int64                  `protobuf:"varint,10,opt,name=run_at_unix_ms,json=runAtUnixMs,proto3" json:"run_at_unix_ms,omitempty"`
+	DependsOn      []string               `protobuf:"bytes,11,rep,name=depends_on,json=dependsOn,proto3" json:"depends_on,omitempty"`
+	IdempotencyKey string                 `protobuf:"bytes,12,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *TaskInfo) Reset() {
@@ -1646,6 +1671,13 @@ func (x *TaskInfo) GetDependsOn() []string {
 		return x.DependsOn
 	}
 	return nil
+}
+
+func (x *TaskInfo) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
 }
 
 type ReplayDLQRequest struct {
