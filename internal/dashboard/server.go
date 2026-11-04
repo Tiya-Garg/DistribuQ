@@ -188,9 +188,10 @@ func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		TaskID   string `json:"task_id"`
-		Payload  string `json:"payload"`
-		Priority int    `json:"priority"`
+		TaskID      string `json:"task_id"`
+		Payload     string `json:"payload"`
+		Priority    int    `json:"priority"`
+		RequiredTag string `json:"required_tag"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
@@ -211,7 +212,7 @@ func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := s.sched.SubmitTaskWithPriority(req.TaskID, req.Payload, req.Priority)
+	_, err := s.sched.SubmitTaskWithOpts(req.TaskID, req.Payload, req.Priority, req.RequiredTag)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]any{
