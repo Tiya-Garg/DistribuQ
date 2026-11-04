@@ -17,6 +17,7 @@ message LogEntry {
   string worker_id = 6;
   string cause = 7;
   int32 priority = 8;
+  string required_tag = 9;
 }
 
 message RequestVoteRequest {
@@ -73,6 +74,8 @@ service RaftService {
 message RegisterWorkerRequest {
   string worker_id = 1;
   string addr = 2;
+  repeated string tags = 3;
+  int32 max_concurrent = 4;
 }
 
 message RegisterWorkerResponse {
@@ -81,6 +84,8 @@ message RegisterWorkerResponse {
 
 message HeartbeatRequest {
   string worker_id = 1;
+  int32 active_tasks = 2;
+  double cpu_usage = 3;
 }
 
 message HeartbeatResponse {
@@ -91,6 +96,7 @@ message SubmitTaskRequest {
   string task_id = 1;
   string payload = 2;
   int32 priority = 3;
+  string required_tag = 4;
 }
 
 message SubmitTaskResponse {
@@ -123,8 +129,17 @@ message GetStatusResponse {
   int32 worker_count = 2;
 }
 
+message DrainWorkerRequest {
+  string worker_id = 1;
+}
+
+message DrainWorkerResponse {
+  bool ok = 1;
+}
+
 service SchedulerService {
   rpc RegisterWorker(RegisterWorkerRequest) returns (RegisterWorkerResponse);
+  rpc DrainWorker(DrainWorkerRequest) returns (DrainWorkerResponse);
   rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
   rpc SubmitTask(SubmitTaskRequest) returns (SubmitTaskResponse);
   rpc CompleteTask(CompleteTaskRequest) returns (CompleteTaskResponse);
