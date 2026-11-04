@@ -150,6 +150,7 @@ When `-ca-cert` and `-tls-cert` are omitted, communication defaults to insecure 
 - [x] Dynamic worker registration, capability tags, telemetry heartbeats & graceful drain
 - [x] Mutual TLS (mTLS) Authentication & Encryption for cluster transport and CLI commands
 - [x] Task Retries, Exponential Backoff & Dead Letter Queue (DLQ) with Replay/Purge APIs
+- [x] Persistent Task Storage & High-Performance Write-Ahead Log (WAL) with CRC32 integrity verification
 
 ## License
 
