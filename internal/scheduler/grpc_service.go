@@ -71,11 +71,11 @@ func (s *GRPCSchedulerServer) SubmitTask(ctx context.Context, req *pb.SubmitTask
 	if req.RunAtUnixMs > 0 {
 		runAt = time.UnixMilli(req.RunAtUnixMs)
 	}
-	if _, err := s.S.SubmitTaskFull(req.TaskId, req.Payload, int(req.Priority), req.RequiredTag, runAt); err != nil {
+	if _, err := s.S.SubmitTaskDAG(req.TaskId, req.Payload, int(req.Priority), req.RequiredTag, runAt, req.DependsOn); err != nil {
 		if errors.Is(err, ErrDuplicateTask) {
 			return nil, status.Error(codes.AlreadyExists, err.Error())
 		}
-		if errors.Is(err, ErrEmptyTaskID) {
+		if errors.Is(err, ErrEmptyTaskID) || errors.Is(err, ErrCyclicDependency) {
 			return nil, status.Error(codes.InvalidArgument, err.Error())
 		}
 		return nil, status.Error(codes.Internal, err.Error())
@@ -149,6 +149,7 @@ func (s *GRPCSchedulerServer) GetDLQ(ctx context.Context, req *pb.GetDLQRequest)
 			Priority:    int32(t.Priority),
 			RequiredTag: t.RequiredTag,
 			LastError:   t.LastError,
+			DependsOn:   t.DependsOn,
 		})
 	}
 	return &pb.GetDLQResponse{Tasks: tasks}, nil
