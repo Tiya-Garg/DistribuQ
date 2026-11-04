@@ -31,20 +31,21 @@ const (
 
 // LogEntry is an entry in the replicated Raft log representing a task event.
 type LogEntry struct {
-	Index       int         `json:"index"`
-	Term        int         `json:"term"`
-	Type        CommandType `json:"type"`
-	TaskID      string      `json:"task_id"`
-	Payload     string      `json:"payload,omitempty"`
-	WorkerID    string      `json:"worker_id,omitempty"`
-	Cause       string      `json:"cause,omitempty"`
-	Priority    int         `json:"priority,omitempty"`
-	RequiredTag string      `json:"required_tag,omitempty"`
-	RunAtUnixMs int64       `json:"run_at_unix_ms,omitempty"`
-	PeerID      string      `json:"peer_id,omitempty"`
-	PeerAddr    string      `json:"peer_addr,omitempty"`
-	CronExpr    string      `json:"cron_expr,omitempty"`
-	DependsOn   []string    `json:"depends_on,omitempty"`
+	Index          int         `json:"index"`
+	Term           int         `json:"term"`
+	Type           CommandType `json:"type"`
+	TaskID         string      `json:"task_id"`
+	Payload        string      `json:"payload,omitempty"`
+	WorkerID       string      `json:"worker_id,omitempty"`
+	Cause          string      `json:"cause,omitempty"`
+	Priority       int         `json:"priority,omitempty"`
+	RequiredTag    string      `json:"required_tag,omitempty"`
+	RunAtUnixMs    int64       `json:"run_at_unix_ms,omitempty"`
+	PeerID         string      `json:"peer_id,omitempty"`
+	PeerAddr       string      `json:"peer_addr,omitempty"`
+	CronExpr       string      `json:"cron_expr,omitempty"`
+	DependsOn      []string    `json:"depends_on,omitempty"`
+	IdempotencyKey string      `json:"idempotency_key,omitempty"`
 }
 
 // Persister durably stores the Raft state that must survive a restart:
