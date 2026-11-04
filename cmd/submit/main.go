@@ -43,6 +43,8 @@ func main() {
 	payload := flag.String("payload", "hello", "task payload")
 	priorityFlag := flag.String("priority", "normal", "task priority: low, normal, high, critical (or 0-3)")
 	tagFlag := flag.String("tag", "", "optional required worker capability tag (e.g. gpu, highmem)")
+	replayDLQ := flag.Bool("replay-dlq", false, "replay task from DLQ back into active queue")
+	purgeDLQ := flag.Bool("purge-dlq", false, "purge task from DLQ")
 	caCert := flag.String("ca-cert", "", "path to CA root certificate for mTLS")
 	tlsCert := flag.String("tls-cert", "", "path to client TLS certificate for mTLS")
 	tlsKey := flag.String("tls-key", "", "path to client TLS private key for mTLS")
@@ -84,17 +86,36 @@ func main() {
 
 		client := pb.NewSchedulerServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		resp, callErr := client.SubmitTask(ctx, &pb.SubmitTaskRequest{
-			TaskId:      *id,
-			Payload:     *payload,
-			Priority:    priority,
-			RequiredTag: *tagFlag,
-		})
+
+		var callErr error
+		if *replayDLQ {
+			resp, rErr := client.ReplayDLQ(ctx, &pb.ReplayDLQRequest{TaskId: *id})
+			callErr = rErr
+			if callErr == nil {
+				log.Printf("replayed DLQ task %s via %s: ok=%v", *id, addr, resp.Ok)
+			}
+		} else if *purgeDLQ {
+			resp, pErr := client.PurgeDLQ(ctx, &pb.PurgeDLQRequest{TaskId: *id})
+			callErr = pErr
+			if callErr == nil {
+				log.Printf("purged DLQ task %s via %s: ok=%v", *id, addr, resp.Ok)
+			}
+		} else {
+			resp, sErr := client.SubmitTask(ctx, &pb.SubmitTaskRequest{
+				TaskId:      *id,
+				Payload:     *payload,
+				Priority:    priority,
+				RequiredTag: *tagFlag,
+			})
+			callErr = sErr
+			if callErr == nil {
+				log.Printf("submitted task %s to %s: ok=%v", *id, addr, resp.Ok)
+			}
+		}
 		cancel()
 		conn.Close()
 
 		if callErr == nil {
-			log.Printf("submitted task %s to %s: ok=%v", *id, addr, resp.Ok)
 			return
 		}
 
@@ -103,7 +124,7 @@ func main() {
 			log.Printf("%s is not the leader, trying next", addr)
 			continue
 		}
-		log.Printf("submit to %s failed: %v, trying next", addr, callErr)
+		log.Printf("operation on %s failed: %v, trying next", addr, callErr)
 	}
-	log.Fatalf("submit failed against all %d address(es): %v", len(addrs), lastErr)
+	log.Fatalf("operation failed against all %d address(es): %v", len(addrs), lastErr)
 }
