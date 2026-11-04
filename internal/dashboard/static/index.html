@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DistribuQ Cluster Monitor</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --text-muted: #8b949e;
+      --text-bright: #f0f6fc;
+      --accent: #58a6ff;
+      --green: #238636;
+      --green-light: #3fb950;
+      --orange: #d29922;
+      --red: #f85149;
+      --purple: #a371f7;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+      line-height: 1.5;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand h1 {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-bright);
+      letter-spacing: -0.5px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .badge-leader { background: rgba(63, 185, 80, 0.15); color: var(--green-light); border: 1px solid var(--green); }
+    .badge-follower { background: rgba(139, 148, 158, 0.15); color: var(--text-muted); border: 1px solid var(--border); }
+    .badge-live { background: rgba(88, 166, 255, 0.15); color: var(--accent); }
+
+    .pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 8px currentColor;
+    }
+
+    .grid-metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .card h3 {
+      font-size: 13px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .metric-val {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text-bright);
+    }
+
+    .metric-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .section-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-bright);
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .submit-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex: 1;
+      min-width: 180px;
+    }
+
+    .form-group label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    input, select, button {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-bright);
+      padding: 8px 12px;
+      font-size: 14px;
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.2);
+    }
+
+    button.btn-primary {
+      background: var(--green);
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: background 0.15s ease;
+      align-self: flex-end;
+      height: 38px;
+    }
+
+    button.btn-primary:hover {
+      background: var(--green-light);
+    }
+
+    button.btn-secondary {
+      background: #21262d;
+      cursor: pointer;
+      border: 1px solid var(--border);
+    }
+
+    button.btn-secondary:hover {
+      background: #30363d;
+    }
+
+    .layout-columns {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 900px) {
+      .layout-columns { grid-template-columns: 1fr; }
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th {
+      text-align: left;
+      padding: 10px 12px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: capitalize;
+    }
+
+    .pill-queued { background: rgba(210, 153, 34, 0.15); color: var(--orange); }
+    .pill-assigned, .pill-running { background: rgba(88, 166, 255, 0.15); color: var(--accent); }
+    .pill-completed { background: rgba(63, 185, 80, 0.15); color: var(--green-light); }
+    .pill-failed { background: rgba(248, 81, 73, 0.15); color: var(--red); }
+
+    .prio-critical { color: var(--red); font-weight: 700; }
+    .prio-high { color: var(--orange); font-weight: 600; }
+    .prio-normal { color: var(--text); }
+    .prio-low { color: var(--text-muted); }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      padding: 12px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      display: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <h1>DistribuQ</h1>
+      <span id="role-badge" class="badge badge-follower">Follower</span>
+      <span id="node-id" style="color: var(--text-muted); font-size: 14px;">Node: -</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span class="badge badge-live">
+        <span class="pulse"></span> Live SSE
+      </span>
+    </div>
+  </header>
+
+  <div class="grid-metrics">
+    <div class="card">
+      <h3>Raft Consensus</h3>
+      <div id="metric-term" class="metric-val">Term 0</div>
+      <div id="metric-leader" class="metric-sub">Leader: -</div>
+    </div>
+    <div class="card">
+      <h3>Replicated Log</h3>
+      <div id="metric-log-index" class="metric-val">0</div>
+      <div id="metric-commit-sub" class="metric-sub">Commit: 0 &bull; Snap: 0</div>
+    </div>
+    <div class="card">
+      <h3>Workers</h3>
+      <div id="metric-workers" class="metric-val">0</div>
+      <div id="metric-workers-sub" class="metric-sub">Active cluster nodes</div>
+    </div>
+    <div class="card">
+      <h3>Task Throughput</h3>
+      <div id="metric-tasks-completed" class="metric-val" style="color: var(--green-light);">0</div>
+      <div id="metric-tasks-sub" class="metric-sub">0 queued &bull; 0 assigned</div>
+    </div>
+  </div>
+
+  <div class="submit-card">
+    <div class="section-title">
+      <span>Submit Task</span>
+    </div>
+    <form id="submit-form">
+      <div class="form-row">
+        <div class="form-group" style="flex: 1.2;">
+          <label>Task ID</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="text" id="task-id" placeholder="e.g. task-01" required style="flex: 1;">
+            <button type="button" class="btn-secondary" id="btn-gen-id">Random</button>
+          </div>
+        </div>
+        <div class="form-group" style="flex: 2;">
+          <label>Shell Command / Payload</label>
+          <input type="text" id="task-payload" placeholder="echo 'Hello from DistribuQ' && sleep 1" required>
+        </div>
+        <div class="form-group" style="flex: 1;">
+          <label>Priority</label>
+          <select id="task-priority">
+            <option value="3">Critical (3)</option>
+            <option value="2">High (2)</option>
+            <option value="1" selected>Normal (1)</option>
+            <option value="0">Low (0)</option>
+          </select>
+        </div>
+        <button type="submit" class="btn-primary" id="btn-submit">Submit Task</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="layout-columns">
+    <div class="card">
+      <div class="section-title">
+        <span>Connected Workers</span>
+        <span id="worker-count-badge" class="badge badge-follower">0</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Address</th>
+            <th>Active</th>
+            <th>Heartbeat</th>
+          </tr>
+        </thead>
+        <tbody id="workers-tbody">
+          <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No workers registered</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="section-title">
+        <span>Task Queue & History</span>
+        <span id="task-count-badge" class="badge badge-follower">0</span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Priority</th>
+            <th>Status</th>
+            <th>Worker</th>
+            <th>Payload</th>
+          </tr>
+        </thead>
+        <tbody id="tasks-tbody">
+          <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No tasks submitted</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    function showToast(msg, isError) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.style.borderColor = isError ? 'var(--red)' : 'var(--green)';
+      toast.style.color = isError ? 'var(--red)' : 'var(--green-light)';
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 4000);
+    }
+
+    document.getElementById('btn-gen-id').addEventListener('click', () => {
+      document.getElementById('task-id').value = 'task-' + Math.random().toString(36).substring(2, 8);
+    });
+
+    document.getElementById('submit-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('task-id').value.trim();
+      const payload = document.getElementById('task-payload').value.trim();
+      const priority = parseInt(document.getElementById('task-priority').value, 10);
+
+      try {
+        const resp = await fetch('/api/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ task_id: id, payload, priority })
+        });
+        const res = await resp.json();
+        if (resp.ok && res.ok) {
+          showToast(`Task ${id} submitted successfully!`);
+          document.getElementById('task-id').value = '';
+          document.getElementById('task-payload').value = '';
+        } else {
+          showToast(res.error || 'Submission failed', true);
+        }
+      } catch (err) {
+        showToast('Error: ' + err.message, true);
+      }
+    });
+
+    function formatPriority(p) {
+      switch(p) {
+        case 3: return '<span class="prio-critical">Critical (3)</span>';
+        case 2: return '<span class="prio-high">High (2)</span>';
+        case 1: return '<span class="prio-normal">Normal (1)</span>';
+        case 0: return '<span class="prio-low">Low (0)</span>';
+        default: return p;
+      }
+    }
+
+    function timeAgo(dateStr) {
+      if (!dateStr || dateStr.startsWith('0001')) return 'never';
+      const sec = Math.max(0, Math.floor((new Date() - new Date(dateStr)) / 1000));
+      return sec + 's ago';
+    }
+
+    function updateDashboard(data) {
+      if (!data) return;
+
+      // Header & Raft
+      document.getElementById('node-id').textContent = 'Node: ' + (data.raft.node_id || '-');
+      const roleBadge = document.getElementById('role-badge');
+      const isLeader = data.raft.role === 'leader';
+      roleBadge.textContent = data.raft.role;
+      roleBadge.className = 'badge ' + (isLeader ? 'badge-leader' : 'badge-follower');
+
+      document.getElementById('metric-term').textContent = 'Term ' + data.raft.term;
+      document.getElementById('metric-leader').textContent = 'Leader: ' + (data.raft.leader_id ? data.raft.leader_id : '(none)');
+
+      document.getElementById('metric-log-index').textContent = data.raft.last_log_index;
+      document.getElementById('metric-commit-sub').textContent = `Commit: ${data.raft.commit_index} • Snap: ${data.raft.last_included_index}`;
+
+      // Worker Metrics
+      const workers = data.workers || [];
+      document.getElementById('metric-workers').textContent = workers.length;
+      document.getElementById('worker-count-badge').textContent = workers.length;
+
+      const workersTbody = document.getElementById('workers-tbody');
+      if (workers.length === 0) {
+        workersTbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No workers registered</td></tr>';
+      } else {
+        workersTbody.innerHTML = workers.map(w => `
+          <tr>
+            <td style="font-weight: 600;">${w.id}</td>
+            <td style="color: var(--text-muted);">${w.addr}</td>
+            <td><span class="pill pill-assigned">${w.active_tasks}</span></td>
+            <td>${timeAgo(w.last_heartbeat)}</td>
+          </tr>
+        `).join('');
+      }
+
+      // Tasks
+      const tasks = data.tasks || [];
+      document.getElementById('task-count-badge').textContent = tasks.length;
+      let completed = 0, queued = 0, assigned = 0;
+      tasks.forEach(t => {
+        if (t.status === 'completed') completed++;
+        else if (t.status === 'queued') queued++;
+        else if (t.status === 'assigned' || t.status === 'running') assigned++;
+      });
+      document.getElementById('metric-tasks-completed').textContent = completed;
+      document.getElementById('metric-tasks-sub').textContent = `${queued} queued • ${assigned} assigned`;
+
+      // Sort tasks: newest or highest priority
+      tasks.sort((a, b) => b.seq - a.seq);
+
+      const tasksTbody = document.getElementById('tasks-tbody');
+      if (tasks.length === 0) {
+        tasksTbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No tasks submitted</td></tr>';
+      } else {
+        tasksTbody.innerHTML = tasks.slice(0, 30).map(t => `
+          <tr>
+            <td style="font-weight: 600;">${t.id}</td>
+            <td>${formatPriority(t.priority)}</td>
+            <td><span class="pill pill-${t.status}">${t.status}</span></td>
+            <td>${t.worker_id || '<span style="color: var(--text-muted);">-</span>'}</td>
+            <td style="font-family: monospace; font-size: 12px; color: var(--text-muted);">${t.payload}</td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    // Connect to Server-Sent Events (SSE)
+    function connectSSE() {
+      const sse = new EventSource('/api/events');
+      sse.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          updateDashboard(data);
+        } catch (err) {
+          console.error('Failed to parse SSE payload:', err);
+        }
+      };
+      sse.onerror = () => {
+        console.warn('SSE connection lost, reconnecting...');
+        sse.close();
+        setTimeout(connectSSE, 2000);
+      };
+    }
+
+    connectSSE();
+  </script>
+</body>
+</html>
