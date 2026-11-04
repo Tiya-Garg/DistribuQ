@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Tiya-Garg/DistribuQ/internal/cron"
 	"github.com/Tiya-Garg/DistribuQ/internal/raft"
 )
 
@@ -111,12 +112,24 @@ var (
 // for the full production timeout.
 var WorkerTimeout = 3 * time.Second
 
+// CronJob represents a recurring scheduled task definition.
+type CronJob struct {
+	ID          string    `json:"id"`
+	Expression  string    `json:"expression"`
+	Payload     string    `json:"payload"`
+	Priority    int       `json:"priority"`
+	RequiredTag string    `json:"required_tag,omitempty"`
+	NextRun     time.Time `json:"next_run"`
+	Schedule    *cron.Schedule
+}
+
 type Scheduler struct {
 	mu sync.Mutex
 
-	tasks   map[string]*Task
-	workers map[string]*WorkerInfo
-	nextSeq uint64
+	tasks    map[string]*Task
+	cronJobs map[string]*CronJob
+	workers  map[string]*WorkerInfo
+	nextSeq  uint64
 
 	// kick wakes MonitorWorkers to dispatch queued tasks right away
 	// (buffered so a registration never blocks on it).
@@ -150,6 +163,7 @@ type Scheduler struct {
 func NewScheduler(dispatchFn func(workerID, addr string, task *Task) error) *Scheduler {
 	return &Scheduler{
 		tasks:      make(map[string]*Task),
+		cronJobs:   make(map[string]*CronJob),
 		workers:    make(map[string]*WorkerInfo),
 		dispatchFn: dispatchFn,
 		kick:       make(chan struct{}, 1),
@@ -442,6 +456,102 @@ func (s *Scheduler) CancelTask(id string) error {
 		_ = abortFn(workerID, workerAddr, id)
 	}
 	return nil
+}
+
+// AddCronJob registers or updates a recurring cron schedule.
+func (s *Scheduler) AddCronJob(id, expr, payload string, priority int, requiredTag string) error {
+	sched, err := cron.Parse(expr)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	nextRun := sched.Next(now)
+
+	s.mu.Lock()
+	proposer := s.proposer
+	if proposer == nil {
+		s.cronJobs[id] = &CronJob{
+			ID:          id,
+			Expression:  expr,
+			Payload:     payload,
+			Priority:    priority,
+			RequiredTag: requiredTag,
+			NextRun:     nextRun,
+			Schedule:    sched,
+		}
+		s.mu.Unlock()
+		return nil
+	}
+	s.mu.Unlock()
+
+	_, _, commitCh, err := proposer.Propose(raft.LogEntry{
+		Type:        raft.CmdAddCron,
+		TaskID:      id,
+		Payload:     payload,
+		Priority:    priority,
+		RequiredTag: requiredTag,
+		CronExpr:    expr,
+	})
+	if err != nil {
+		return err
+	}
+	select {
+	case ok := <-commitCh:
+		if !ok {
+			return ErrNotLeader
+		}
+	case <-time.After(10 * time.Second):
+		return errors.New("scheduler: add cron timed out waiting for majority commit")
+	}
+	return nil
+}
+
+// RemoveCronJob unregisters a recurring cron schedule.
+func (s *Scheduler) RemoveCronJob(id string) error {
+	s.mu.Lock()
+	proposer := s.proposer
+	if proposer == nil {
+		delete(s.cronJobs, id)
+		s.mu.Unlock()
+		return nil
+	}
+	s.mu.Unlock()
+
+	_, _, commitCh, err := proposer.Propose(raft.LogEntry{
+		Type:   raft.CmdRemoveCron,
+		TaskID: id,
+	})
+	if err != nil {
+		return err
+	}
+	select {
+	case ok := <-commitCh:
+		if !ok {
+			return ErrNotLeader
+		}
+	case <-time.After(10 * time.Second):
+		return errors.New("scheduler: remove cron timed out waiting for majority commit")
+	}
+	return nil
+}
+
+// CronJobs returns all active recurring cron jobs.
+func (s *Scheduler) CronJobs() []*CronJob {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	jobs := make([]*CronJob, 0, len(s.cronJobs))
+	for _, j := range s.cronJobs {
+		jobs = append(jobs, &CronJob{
+			ID:          j.ID,
+			Expression:  j.Expression,
+			Payload:     j.Payload,
+			Priority:    j.Priority,
+			RequiredTag: j.RequiredTag,
+			NextRun:     j.NextRun,
+		})
+	}
+	return jobs
 }
 
 // dispatch picks the least-loaded worker and hands the task to it. If
@@ -888,6 +998,35 @@ func (s *Scheduler) sweepAsync() {
 	}()
 }
 
+// triggerCronJobsLocked checks if any cron job's NextRun has arrived and schedules an execution.
+func (s *Scheduler) triggerCronJobsLocked() {
+	now := time.Now()
+	for _, job := range s.cronJobs {
+		if job.Schedule == nil {
+			job.Schedule, _ = cron.Parse(job.Expression)
+		}
+		if job.Schedule == nil {
+			continue
+		}
+		if !job.NextRun.IsZero() && !now.Before(job.NextRun) {
+			instanceID := fmt.Sprintf("%s-%d", job.ID, job.NextRun.Unix())
+			if _, exists := s.tasks[instanceID]; !exists {
+				s.nextSeq++
+				s.tasks[instanceID] = &Task{
+					ID:          instanceID,
+					Payload:     job.Payload,
+					Status:      TaskQueued,
+					Priority:    job.Priority,
+					RequiredTag: job.RequiredTag,
+					MaxRetries:  3,
+					seq:         s.nextSeq,
+				}
+			}
+			job.NextRun = job.Schedule.Next(now)
+		}
+	}
+}
+
 // dispatchQueued hands every queued task to a worker, oldest
 // submission first, one after another. It blocks for as long as the
 // dispatches do, so the monitor runs it through sweepAsync rather than
@@ -897,6 +1036,7 @@ func (s *Scheduler) sweepAsync() {
 // next sweep.
 func (s *Scheduler) dispatchQueued() {
 	s.mu.Lock()
+	s.triggerCronJobsLocked()
 	if s.pickLeastLoadedWorkerLocked() == nil {
 		s.mu.Unlock()
 		return
@@ -1098,8 +1238,9 @@ type TaskSnapshot struct {
 }
 
 type schedulerSnapshotData struct {
-	Tasks   map[string]TaskSnapshot `json:"tasks"`
-	NextSeq uint64                  `json:"next_seq"`
+	Tasks    map[string]TaskSnapshot `json:"tasks"`
+	CronJobs map[string]*CronJob     `json:"cron_jobs,omitempty"`
+	NextSeq  uint64                  `json:"next_seq"`
 }
 
 // EncodeState returns a serialized snapshot of all tasks and scheduler metadata.
@@ -1123,9 +1264,23 @@ func (s *Scheduler) EncodeState() ([]byte, error) {
 			RunAt:       t.RunAt,
 		}
 	}
+
+	cronJobs := make(map[string]*CronJob, len(s.cronJobs))
+	for id, j := range s.cronJobs {
+		cronJobs[id] = &CronJob{
+			ID:          j.ID,
+			Expression:  j.Expression,
+			Payload:     j.Payload,
+			Priority:    j.Priority,
+			RequiredTag: j.RequiredTag,
+			NextRun:     j.NextRun,
+		}
+	}
+
 	return json.Marshal(schedulerSnapshotData{
-		Tasks:   tasks,
-		NextSeq: s.nextSeq,
+		Tasks:    tasks,
+		CronJobs: cronJobs,
+		NextSeq:  s.nextSeq,
 	})
 }
 
@@ -1159,6 +1314,21 @@ func (s *Scheduler) RestoreFromSnapshot(data []byte) error {
 			tried:       make(map[string]bool),
 		}
 	}
+
+	s.cronJobs = make(map[string]*CronJob, len(snap.CronJobs))
+	for id, j := range snap.CronJobs {
+		sched, _ := cron.Parse(j.Expression)
+		s.cronJobs[id] = &CronJob{
+			ID:          j.ID,
+			Expression:  j.Expression,
+			Payload:     j.Payload,
+			Priority:    j.Priority,
+			RequiredTag: j.RequiredTag,
+			NextRun:     j.NextRun,
+			Schedule:    sched,
+		}
+	}
+
 	if snap.NextSeq > s.nextSeq {
 		s.nextSeq = snap.NextSeq
 	}
@@ -1261,6 +1431,23 @@ func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
 				task.WorkerID = ""
 			}
 		}
+
+	case raft.CmdAddCron:
+		sched, err := cron.Parse(entry.CronExpr)
+		if err == nil {
+			s.cronJobs[entry.TaskID] = &CronJob{
+				ID:          entry.TaskID,
+				Expression:  entry.CronExpr,
+				Payload:     entry.Payload,
+				Priority:    entry.Priority,
+				RequiredTag: entry.RequiredTag,
+				NextRun:     sched.Next(time.Now()),
+				Schedule:    sched,
+			}
+		}
+
+	case raft.CmdRemoveCron:
+		delete(s.cronJobs, entry.TaskID)
 	}
 }
 
