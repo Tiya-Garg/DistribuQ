@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/Tiya-Garg/DistribuQ/internal/scheduler"
+	"github.com/Tiya-Garg/DistribuQ/internal/security"
 	pb "github.com/Tiya-Garg/DistribuQ/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 )
 
@@ -43,6 +43,10 @@ func main() {
 	payload := flag.String("payload", "hello", "task payload")
 	priorityFlag := flag.String("priority", "normal", "task priority: low, normal, high, critical (or 0-3)")
 	tagFlag := flag.String("tag", "", "optional required worker capability tag (e.g. gpu, highmem)")
+	caCert := flag.String("ca-cert", "", "path to CA root certificate for mTLS")
+	tlsCert := flag.String("tls-cert", "", "path to client TLS certificate for mTLS")
+	tlsKey := flag.String("tls-key", "", "path to client TLS private key for mTLS")
+	serverName := flag.String("server-name", "localhost", "expected scheduler TLS server name (SAN) for dial verification")
 	flag.Parse()
 
 	if *id == "" {
@@ -52,6 +56,18 @@ func main() {
 	priority := parsePriority(*priorityFlag)
 	addrs := strings.Split(*addrsFlag, ",")
 
+	tlsCfg := &security.TLSConfig{
+		CACertPath: *caCert,
+		CertPath:   *tlsCert,
+		KeyPath:    *tlsKey,
+		ServerName: *serverName,
+	}
+
+	dialOpt, err := tlsCfg.DialOption()
+	if err != nil {
+		log.Fatalf("failed to configure TLS dial options: %v", err)
+	}
+
 	var lastErr error
 	for _, addr := range addrs {
 		addr = strings.TrimSpace(addr)
@@ -59,7 +75,7 @@ func main() {
 			continue
 		}
 
-		conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		conn, err := grpc.NewClient(addr, dialOpt)
 		if err != nil {
 			lastErr = err
 			log.Printf("dial %s failed: %v, trying next", addr, err)
