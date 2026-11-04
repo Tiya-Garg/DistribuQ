@@ -21,6 +21,7 @@ message LogEntry {
   int64 run_at_unix_ms = 10;
   string peer_id = 11;
   string peer_addr = 12;
+  repeated string depends_on = 13;
 }
 
 message RequestVoteRequest {
@@ -101,6 +102,7 @@ message SubmitTaskRequest {
   int32 priority = 3;
   string required_tag = 4;
   int64 run_at_unix_ms = 5;
+  repeated string depends_on = 6;
 }
 
 message SubmitTaskResponse {
@@ -166,6 +168,7 @@ enum TaskState {
   DLQ = 5;
   SCHEDULED = 6;
   CANCELED = 7;
+  BLOCKED = 8;
 }
 
 message TaskInfo {
@@ -179,6 +182,7 @@ message TaskInfo {
   string required_tag = 8;
   string last_error = 9;
   int64 run_at_unix_ms = 10;
+  repeated string depends_on = 11;
 }
 
 message ReplayDLQRequest {

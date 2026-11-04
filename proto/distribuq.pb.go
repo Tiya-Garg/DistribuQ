@@ -32,6 +32,7 @@ const (
 	TaskState_DLQ       TaskState = 5
 	TaskState_SCHEDULED TaskState = 6
 	TaskState_CANCELED  TaskState = 7
+	TaskState_BLOCKED   TaskState = 8
 )
 
 // Enum value maps for TaskState.
@@ -45,6 +46,7 @@ var (
 		5: "DLQ",
 		6: "SCHEDULED",
 		7: "CANCELED",
+		8: "BLOCKED",
 	}
 	TaskState_value = map[string]int32{
 		"QUEUED":    0,
@@ -55,6 +57,7 @@ var (
 		"DLQ":       5,
 		"SCHEDULED": 6,
 		"CANCELED":  7,
+		"BLOCKED":   8,
 	}
 )
 
@@ -99,6 +102,7 @@ type LogEntry struct {
 	RunAtUnixMs   int64                  `protobuf:"varint,10,opt,name=run_at_unix_ms,json=runAtUnixMs,proto3" json:"run_at_unix_ms,omitempty"`
 	PeerId        string                 `protobuf:"bytes,11,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
 	PeerAddr      string                 `protobuf:"bytes,12,opt,name=peer_addr,json=peerAddr,proto3" json:"peer_addr,omitempty"`
+	DependsOn     []string               `protobuf:"bytes,13,rep,name=depends_on,json=dependsOn,proto3" json:"depends_on,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -215,6 +219,13 @@ func (x *LogEntry) GetPeerAddr() string {
 		return x.PeerAddr
 	}
 	return ""
+}
+
+func (x *LogEntry) GetDependsOn() []string {
+	if x != nil {
+		return x.DependsOn
+	}
+	return nil
 }
 
 type RequestVoteRequest struct {
@@ -840,6 +851,7 @@ type SubmitTaskRequest struct {
 	Priority      int32                  `protobuf:"varint,3,opt,name=priority,proto3" json:"priority,omitempty"`
 	RequiredTag   string                 `protobuf:"bytes,4,opt,name=required_tag,json=requiredTag,proto3" json:"required_tag,omitempty"`
 	RunAtUnixMs   int64                  `protobuf:"varint,5,opt,name=run_at_unix_ms,json=runAtUnixMs,proto3" json:"run_at_unix_ms,omitempty"`
+	DependsOn     []string               `protobuf:"bytes,6,rep,name=depends_on,json=dependsOn,proto3" json:"depends_on,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -907,6 +919,13 @@ func (x *SubmitTaskRequest) GetRunAtUnixMs() int64 {
 		return x.RunAtUnixMs
 	}
 	return 0
+}
+
+func (x *SubmitTaskRequest) GetDependsOn() []string {
+	if x != nil {
+		return x.DependsOn
+	}
+	return nil
 }
 
 type SubmitTaskResponse struct {
@@ -1517,6 +1536,7 @@ type TaskInfo struct {
 	RequiredTag   string                 `protobuf:"bytes,8,opt,name=required_tag,json=requiredTag,proto3" json:"required_tag,omitempty"`
 	LastError     string                 `protobuf:"bytes,9,opt,name=last_error,json=lastError,proto3" json:"last_error,omitempty"`
 	RunAtUnixMs   int64                  `protobuf:"varint,10,opt,name=run_at_unix_ms,json=runAtUnixMs,proto3" json:"run_at_unix_ms,omitempty"`
+	DependsOn     []string               `protobuf:"bytes,11,rep,name=depends_on,json=dependsOn,proto3" json:"depends_on,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1619,6 +1639,13 @@ func (x *TaskInfo) GetRunAtUnixMs() int64 {
 		return x.RunAtUnixMs
 	}
 	return 0
+}
+
+func (x *TaskInfo) GetDependsOn() []string {
+	if x != nil {
+		return x.DependsOn
+	}
+	return nil
 }
 
 type ReplayDLQRequest struct {
