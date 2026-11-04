@@ -45,6 +45,7 @@ func main() {
 	tagFlag := flag.String("tag", "", "optional required worker capability tag (e.g. gpu, highmem)")
 	delay := flag.Duration("delay", 0, "optional execution delay before task runs (e.g. 5s, 1m)")
 	runAtFlag := flag.String("run-at", "", "optional execution timestamp (RFC3339 format, e.g. 2026-11-04T18:00:00Z)")
+	dependsOnFlag := flag.String("depends-on", "", "optional comma-separated list of parent task IDs that must complete first")
 	cancelFlag := flag.Bool("cancel", false, "cancel/abort a task by ID")
 	replayDLQ := flag.Bool("replay-dlq", false, "replay task from DLQ back into active queue")
 	purgeDLQ := flag.Bool("purge-dlq", false, "purge task from DLQ")
@@ -70,6 +71,16 @@ func main() {
 			log.Fatalf("invalid -run-at format: %v (expected RFC3339)", err)
 		}
 		runAtUnixMs = t.UnixMilli()
+	}
+
+	var dependsOn []string
+	if *dependsOnFlag != "" {
+		for _, dep := range strings.Split(*dependsOnFlag, ",") {
+			dep = strings.TrimSpace(dep)
+			if dep != "" {
+				dependsOn = append(dependsOn, dep)
+			}
+		}
 	}
 
 	tlsCfg := &security.TLSConfig{
@@ -127,6 +138,7 @@ func main() {
 				Priority:    priority,
 				RequiredTag: *tagFlag,
 				RunAtUnixMs: runAtUnixMs,
+				DependsOn:   dependsOn,
 			})
 			callErr = sErr
 			if callErr == nil {
