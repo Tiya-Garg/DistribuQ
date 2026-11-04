@@ -23,12 +23,17 @@ A fault-tolerant distributed task scheduler written in Go. Multiple scheduler re
 | Package | Responsibility |
 | --- | --- |
 | `proto` | Protocol Buffer definitions and generated gRPC clients/servers for Raft, Scheduler, and Worker services |
-| `internal/raft` | Raft-style leader election **and log replication** (terms, randomised timeouts, RequestVote, AppendEntries / heartbeats, election restriction, majority commit) behind a `Transport` interface |
-| `internal/scheduler` | Task queue, least-loaded dispatch, retries (max 3 attempts), dead-worker detection and task reassignment; applies committed Raft log entries |
-| `internal/worker` | Worker gRPC service, heartbeat loop, shell-command executor with timeout |
-| `cmd/scheduler` | Runs one scheduler replica; `-data-dir` persists Raft state across restarts |
+| `internal/raft` | Raft consensus engine: leader election, log replication, snapshot compaction, and dynamic membership |
+| `internal/scheduler` | Task queue, least-loaded dispatch, priority scheduling, DAG dependencies, DLQ, and deduplication |
+| `internal/worker` | Worker gRPC service, heartbeat loop, concurrency limits, and shell executor |
+| `internal/cron` | Distributed cron engine for scheduled recurring task execution |
+| `internal/wal` | High-performance write-ahead log with CRC32 checksums for durable persistence |
+| `internal/security` | Mutual TLS (mTLS 1.3) certificate loading and transport credentials |
+| `internal/metrics` | Prometheus metrics registry and HTTP export handler (`/metrics`) |
+| `internal/dashboard` | Live cluster dashboard and real-time Server-Sent Events (SSE) monitor |
+| `cmd/scheduler` | Runs one scheduler replica; `-data-dir` persists Raft and scheduler state across restarts |
 | `cmd/worker` | Runs one worker; `-scheduler` accepts a comma-separated list of replica addresses |
-| `cmd/submit` | CLI to submit a task; tries each replica until it finds the leader |
+| `cmd/submit` | CLI to submit, delay, cancel, or deduplicate tasks; routes to the active leader |
 | `cmd/status` | CLI to view a replica's tasks and worker count |
 | `cmd/chaos` | End-to-end failure-injection test (random worker + leader kills under load) |
 
