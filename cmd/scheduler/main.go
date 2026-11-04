@@ -89,6 +89,11 @@ func main() {
 	sched.SetRaftProposer(node)
 	node.OnApply(func(entry raft.LogEntry) {
 		sched.ApplyEntry(entry)
+		if entry.Type == raft.CmdAddPeer && entry.PeerID != "" && entry.PeerAddr != "" {
+			transport.SetPeerAddr(entry.PeerID, entry.PeerAddr)
+		} else if entry.Type == raft.CmdRemovePeer && entry.PeerID != "" {
+			transport.RemovePeer(entry.PeerID)
+		}
 		if node.State() == raft.Leader && entry.Type == raft.CmdSubmit {
 			sched.KickDispatch()
 		}
@@ -153,6 +158,41 @@ func main() {
 	pb.RegisterSchedulerServiceServer(server, &scheduler.GRPCSchedulerServer{
 		S:        sched,
 		IsLeader: func() bool { return node.State() == raft.Leader },
+		AddPeer: func(peerID, peerAddr string) error {
+			transport.SetPeerAddr(peerID, peerAddr)
+			ch, err := node.AddPeer(peerID, peerAddr)
+			if err != nil {
+				return err
+			}
+			select {
+			case ok := <-ch:
+				if !ok {
+					return fmt.Errorf("add peer proposal rejected")
+				}
+				return nil
+			case <-time.After(10 * time.Second):
+				return fmt.Errorf("timed out waiting for add peer commit")
+			}
+		},
+		RemovePeer: func(peerID string) error {
+			ch, err := node.RemovePeer(peerID)
+			if err != nil {
+				return err
+			}
+			select {
+			case ok := <-ch:
+				if !ok {
+					return fmt.Errorf("remove peer proposal rejected")
+				}
+				transport.RemovePeer(peerID)
+				return nil
+			case <-time.After(10 * time.Second):
+				return fmt.Errorf("timed out waiting for remove peer commit")
+			}
+		},
+		GetPeers: func() (string, []string) {
+			return node.ClusterMembership()
+		},
 	})
 
 	listener, err := net.Listen("tcp", *addr)

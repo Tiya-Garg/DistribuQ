@@ -25,8 +25,11 @@ func truncateCause(cause string) string {
 // GRPCSchedulerServer implements pb.SchedulerServiceServer to serve scheduler RPCs over gRPC.
 type GRPCSchedulerServer struct {
 	pb.UnimplementedSchedulerServiceServer
-	S        *Scheduler
-	IsLeader func() bool
+	S          *Scheduler
+	IsLeader   func() bool
+	AddPeer    func(peerID, peerAddr string) error
+	RemovePeer func(peerID string) error
+	GetPeers   func() (leaderID string, peers []string)
 }
 
 func (s *GRPCSchedulerServer) requireLeader() bool {
@@ -162,4 +165,41 @@ func (s *GRPCSchedulerServer) PurgeDLQ(ctx context.Context, req *pb.PurgeDLQRequ
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &pb.PurgeDLQResponse{Ok: true}, nil
+}
+
+func (s *GRPCSchedulerServer) AddPeer(ctx context.Context, req *pb.AddPeerRequest) (*pb.AddPeerResponse, error) {
+	if !s.requireLeader() {
+		return nil, status.Error(codes.FailedPrecondition, ErrNotLeader.Error())
+	}
+	if s.AddPeer == nil {
+		return nil, status.Error(codes.Unimplemented, "membership changes not supported on this node")
+	}
+	if err := s.AddPeer(req.PeerId, req.PeerAddr); err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return &pb.AddPeerResponse{Ok: true}, nil
+}
+
+func (s *GRPCSchedulerServer) RemovePeer(ctx context.Context, req *pb.RemovePeerRequest) (*pb.RemovePeerResponse, error) {
+	if !s.requireLeader() {
+		return nil, status.Error(codes.FailedPrecondition, ErrNotLeader.Error())
+	}
+	if s.RemovePeer == nil {
+		return nil, status.Error(codes.Unimplemented, "membership changes not supported on this node")
+	}
+	if err := s.RemovePeer(req.PeerId); err != nil {
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return &pb.RemovePeerResponse{Ok: true}, nil
+}
+
+func (s *GRPCSchedulerServer) GetClusterMembership(ctx context.Context, req *pb.ClusterMembershipRequest) (*pb.ClusterMembershipResponse, error) {
+	if s.GetPeers == nil {
+		return &pb.ClusterMembershipResponse{}, nil
+	}
+	leader, peers := s.GetPeers()
+	return &pb.ClusterMembershipResponse{
+		LeaderId: leader,
+		Peers:    peers,
+	}, nil
 }
