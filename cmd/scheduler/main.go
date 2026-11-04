@@ -27,7 +27,7 @@ func main() {
 	addr := flag.String("addr", ":8000", "address to listen on for RPC")
 	httpAddr := flag.String("http", "", "optional HTTP address to serve web dashboard and REST/SSE API (e.g. :8080)")
 	peersFlag := flag.String("peers", "", "comma-separated id=addr pairs for other scheduler replicas")
-	dataDir := flag.String("data-dir", "", "directory for durable Raft state (term and vote); empty keeps state in memory only")
+	dataDir := flag.String("data-dir", "", "directory for durable Raft state (term, vote, replicated log, and snapshots); empty keeps state in memory only")
 	flag.Parse()
 
 	if *id == "" {
