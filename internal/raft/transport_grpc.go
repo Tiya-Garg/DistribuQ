@@ -82,14 +82,15 @@ func toPBLogEntries(entries []LogEntry) []*pb.LogEntry {
 	res := make([]*pb.LogEntry, len(entries))
 	for i, e := range entries {
 		res[i] = &pb.LogEntry{
-			Index:    int64(e.Index),
-			Term:     int64(e.Term),
-			Type:     string(e.Type),
-			TaskId:   e.TaskID,
-			Payload:  e.Payload,
-			WorkerId: e.WorkerID,
-			Cause:    e.Cause,
-			Priority: int32(e.Priority),
+			Index:       int64(e.Index),
+			Term:        int64(e.Term),
+			Type:        string(e.Type),
+			TaskId:      e.TaskID,
+			Payload:     e.Payload,
+			WorkerId:    e.WorkerID,
+			Cause:       e.Cause,
+			Priority:    int32(e.Priority),
+			RequiredTag: e.RequiredTag,
 		}
 	}
 	return res
@@ -102,14 +103,15 @@ func fromPBLogEntries(entries []*pb.LogEntry) []LogEntry {
 	res := make([]LogEntry, len(entries))
 	for i, e := range entries {
 		res[i] = LogEntry{
-			Index:    int(e.Index),
-			Term:     int(e.Term),
-			Type:     CommandType(e.Type),
-			TaskID:   e.TaskId,
-			Payload:  e.Payload,
-			WorkerID: e.WorkerId,
-			Cause:    e.Cause,
-			Priority: int(e.Priority),
+			Index:       int(e.Index),
+			Term:        int(e.Term),
+			Type:        CommandType(e.Type),
+			TaskID:      e.TaskId,
+			Payload:     e.Payload,
+			WorkerID:    e.WorkerId,
+			Cause:       e.Cause,
+			Priority:    int(e.Priority),
+			RequiredTag: e.RequiredTag,
 		}
 	}
 	return res
