@@ -512,6 +512,8 @@ func (n *Node) sendHeartbeats() {
 					n.matchIndex[peerID] = lIdx
 					n.nextIndex[peerID] = lIdx + 1
 				}
+				n.checkCommitLocked()
+				go n.sendHeartbeats()
 			}(peer, snapData, lastIdx, lastTrm)
 			continue
 		}
