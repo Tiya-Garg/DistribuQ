@@ -153,6 +153,7 @@ When `-ca-cert` and `-tls-cert` are omitted, communication defaults to insecure 
 - [x] Persistent Task Storage & High-Performance Write-Ahead Log (WAL) with CRC32 integrity verification
 - [x] Precision Scheduled & Delayed Tasks (`-delay`, `-run-at`)
 - [x] Dynamic Raft Cluster Membership Changes (§6 `AddPeer`, `RemovePeer`) without cluster restart
+- [x] Task Cancellation & Abort Propagation (`submit -cancel`) to terminate in-flight executions
 
 ## License
 
