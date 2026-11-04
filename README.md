@@ -149,6 +149,7 @@ When `-ca-cert` and `-tls-cert` are omitted, communication defaults to insecure 
 - [x] Real-time live web dashboard & cluster monitor (embedded dark-mode UI with Server-Sent Events)
 - [x] Dynamic worker registration, capability tags, telemetry heartbeats & graceful drain
 - [x] Mutual TLS (mTLS) Authentication & Encryption for cluster transport and CLI commands
+- [x] Task Retries, Exponential Backoff & Dead Letter Queue (DLQ) with Replay/Purge APIs
 
 ## License
 
