@@ -130,6 +130,10 @@ func toPBLogEntries(entries []LogEntry) []*pb.LogEntry {
 			Cause:       e.Cause,
 			Priority:    int32(e.Priority),
 			RequiredTag: e.RequiredTag,
+			RunAtUnixMs: e.RunAtUnixMs,
+			PeerId:      e.PeerID,
+			PeerAddr:    e.PeerAddr,
+			DependsOn:   e.DependsOn,
 		}
 	}
 	return res
@@ -151,6 +155,10 @@ func fromPBLogEntries(entries []*pb.LogEntry) []LogEntry {
 			Cause:       e.Cause,
 			Priority:    int(e.Priority),
 			RequiredTag: e.RequiredTag,
+			RunAtUnixMs: e.RunAtUnixMs,
+			PeerID:      e.PeerId,
+			PeerAddr:    e.PeerAddr,
+			DependsOn:   e.DependsOn,
 		}
 	}
 	return res

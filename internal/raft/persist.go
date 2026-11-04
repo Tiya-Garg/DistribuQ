@@ -44,6 +44,7 @@ type LogEntry struct {
 	PeerID      string      `json:"peer_id,omitempty"`
 	PeerAddr    string      `json:"peer_addr,omitempty"`
 	CronExpr    string      `json:"cron_expr,omitempty"`
+	DependsOn   []string    `json:"depends_on,omitempty"`
 }
 
 // Persister durably stores the Raft state that must survive a restart:
