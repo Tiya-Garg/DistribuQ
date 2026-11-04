@@ -15,13 +15,15 @@ import (
 type CommandType string
 
 const (
-	CmdSubmit    CommandType = "submitted"
-	CmdAssign    CommandType = "assigned"
-	CmdComplete  CommandType = "completed"
-	CmdFail      CommandType = "failed"
-	CmdNoop      CommandType = "noop"
-	CmdReplayDLQ CommandType = "replay_dlq"
-	CmdPurgeDLQ  CommandType = "purge_dlq"
+	CmdSubmit     CommandType = "submitted"
+	CmdAssign     CommandType = "assigned"
+	CmdComplete   CommandType = "completed"
+	CmdFail       CommandType = "failed"
+	CmdNoop       CommandType = "noop"
+	CmdReplayDLQ  CommandType = "replay_dlq"
+	CmdPurgeDLQ   CommandType = "purge_dlq"
+	CmdAddPeer    CommandType = "add_peer"
+	CmdRemovePeer CommandType = "remove_peer"
 )
 
 // LogEntry is an entry in the replicated Raft log representing a task event.
@@ -35,6 +37,9 @@ type LogEntry struct {
 	Cause       string      `json:"cause,omitempty"`
 	Priority    int         `json:"priority,omitempty"`
 	RequiredTag string      `json:"required_tag,omitempty"`
+	RunAtUnixMs int64       `json:"run_at_unix_ms,omitempty"`
+	PeerID      string      `json:"peer_id,omitempty"`
+	PeerAddr    string      `json:"peer_addr,omitempty"`
 }
 
 // Persister durably stores the Raft state that must survive a restart:
