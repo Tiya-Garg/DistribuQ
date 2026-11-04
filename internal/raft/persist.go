@@ -15,13 +15,13 @@ import (
 type CommandType string
 
 const (
-	CmdSubmit     CommandType = "submitted"
-	CmdAssign     CommandType = "assigned"
-	CmdComplete   CommandType = "completed"
-	CmdFail       CommandType = "failed"
-	CmdNoop       CommandType = "noop"
-	CmdReplayDLQ  CommandType = "replay_dlq"
-	CmdPurgeDLQ   CommandType = "purge_dlq"
+	CmdSubmit    CommandType = "submitted"
+	CmdAssign    CommandType = "assigned"
+	CmdComplete  CommandType = "completed"
+	CmdFail      CommandType = "failed"
+	CmdNoop      CommandType = "noop"
+	CmdReplayDLQ CommandType = "replay_dlq"
+	CmdPurgeDLQ  CommandType = "purge_dlq"
 )
 
 // LogEntry is an entry in the replicated Raft log representing a task event.
