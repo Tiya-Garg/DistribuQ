@@ -121,8 +121,9 @@ type Node struct {
 	electionTimeout time.Duration
 
 	stopCh          chan struct{}
-	applyCh         chan LogEntry
-	applySnapshotCh chan []byte
+	applyCond       *sync.Cond
+	applyQueue      []LogEntry
+	pendingSnapshot []byte
 
 	// onBecomeLeader / onBecomeFollower let the scheduler react to
 	// role changes (e.g. start/stop accepting task submissions).
@@ -140,31 +141,56 @@ func NewNode(id string, peers []string, transport Transport) *Node {
 		transport:       transport,
 		electionTimeout: randomElectionTimeout(),
 		stopCh:          make(chan struct{}),
-		applyCh:         make(chan LogEntry, 1024),
-		applySnapshotCh: make(chan []byte, 16),
 	}
+	n.applyCond = sync.NewCond(&n.mu)
 	go n.applyLoop()
 	return n
 }
 
 func (n *Node) applyLoop() {
 	for {
+		n.mu.Lock()
+		for len(n.applyQueue) == 0 && n.pendingSnapshot == nil {
+			select {
+			case <-n.stopCh:
+				n.mu.Unlock()
+				return
+			default:
+			}
+			n.applyCond.Wait()
+		}
 		select {
 		case <-n.stopCh:
-			return
-		case entry := <-n.applyCh:
-			n.mu.Lock()
-			fn := n.onApply
 			n.mu.Unlock()
-			if fn != nil {
-				fn(entry)
-			}
-		case snap := <-n.applySnapshotCh:
-			n.mu.Lock()
+			return
+		default:
+		}
+
+		if n.pendingSnapshot != nil {
+			snap := n.pendingSnapshot
+			n.pendingSnapshot = nil
 			fn := n.onApplySnapshot
 			n.mu.Unlock()
 			if fn != nil {
 				fn(snap)
+			}
+			continue
+		}
+
+		entry := n.applyQueue[0]
+		n.applyQueue = n.applyQueue[1:]
+		fn := n.onApply
+		chs := n.commitWaiters[entry.Index]
+		delete(n.commitWaiters, entry.Index)
+		n.mu.Unlock()
+
+		if fn != nil {
+			fn(entry)
+		}
+		for _, ch := range chs {
+			select {
+			case ch <- true:
+			default:
 			}
 		}
 	}
@@ -273,6 +299,9 @@ func (n *Node) Run() {
 func (n *Node) Stop() {
 	n.mu.Lock()
 	close(n.stopCh)
+	if n.applyCond != nil {
+		n.applyCond.Broadcast()
+	}
 	for _, chs := range n.commitWaiters {
 		for _, ch := range chs {
 			select {
@@ -594,23 +623,11 @@ func (n *Node) checkCommitLocked() {
 		majority := (len(n.Peers)+1)/2 + 1
 		if matches >= majority {
 			n.commitIndex = idx
-			for cIdx, chs := range n.commitWaiters {
-				if cIdx <= n.commitIndex {
-					for _, ch := range chs {
-						select {
-						case ch <- true:
-						default:
-						}
-					}
-					delete(n.commitWaiters, cIdx)
-				}
-			}
 			toApply := n.applyCommittedLocked()
-			for _, e := range toApply {
-				select {
-				case n.applyCh <- e:
-				default:
-					go func(entry LogEntry) { n.applyCh <- entry }(e)
+			if len(toApply) > 0 {
+				n.applyQueue = append(n.applyQueue, toApply...)
+				if n.applyCond != nil {
+					n.applyCond.Signal()
 				}
 			}
 			break
@@ -812,11 +829,10 @@ func (n *Node) HandleHeartbeat(args *HeartbeatArgs) *HeartbeatReply {
 			n.commitIndex = n.lastLogIndexLocked()
 		}
 		toApply := n.applyCommittedLocked()
-		for _, e := range toApply {
-			select {
-			case n.applyCh <- e:
-			default:
-				go func(entry LogEntry) { n.applyCh <- entry }(e)
+		if len(toApply) > 0 {
+			n.applyQueue = append(n.applyQueue, toApply...)
+			if n.applyCond != nil {
+				n.applyCond.Signal()
 			}
 		}
 	}
@@ -897,10 +913,9 @@ func (n *Node) HandleInstallSnapshot(args *InstallSnapshotArgs) *InstallSnapshot
 
 	// Notify application to restore state machine from snapshot
 	snapCopy := append([]byte{}, args.Data...)
-	select {
-	case n.applySnapshotCh <- snapCopy:
-	default:
-		go func(data []byte) { n.applySnapshotCh <- data }(snapCopy)
+	n.pendingSnapshot = snapCopy
+	if n.applyCond != nil {
+		n.applyCond.Signal()
 	}
 
 	return &InstallSnapshotReply{Term: n.currentTerm}
@@ -937,13 +952,11 @@ func (n *Node) Propose(entry LogEntry) (int, int, <-chan bool, error) {
 	// If single node cluster, commit immediately
 	if len(n.Peers) == 0 {
 		n.commitIndex = index
-		commitCh <- true
 		toApply := n.applyCommittedLocked()
-		for _, e := range toApply {
-			select {
-			case n.applyCh <- e:
-			default:
-				go func(entry LogEntry) { n.applyCh <- entry }(e)
+		if len(toApply) > 0 {
+			n.applyQueue = append(n.applyQueue, toApply...)
+			if n.applyCond != nil {
+				n.applyCond.Signal()
 			}
 		}
 	}
