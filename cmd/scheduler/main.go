@@ -81,7 +81,26 @@ func main() {
 		return nil
 	}
 
+	abort := func(workerID, workerAddr, taskID string) error {
+		if workerAddr == "" {
+			return nil
+		}
+		conn, err := grpc.NewClient(workerAddr, dialOpt)
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+
+		client := pb.NewWorkerServiceClient(conn)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		_, err = client.AbortTask(ctx, &pb.AbortTaskRequest{TaskId: taskID})
+		return err
+	}
+
 	sched := scheduler.NewScheduler(dispatch)
+	sched.SetAbortFn(abort)
 	go sched.MonitorWorkers(500 * time.Millisecond)
 
 	transport := raft.NewGRPCTransportWithDialOpt(peerAddrs, dialOpt)
