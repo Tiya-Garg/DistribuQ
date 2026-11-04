@@ -329,44 +329,46 @@ func (s *Scheduler) dispatchAttempt(task *Task) (*Task, error) {
 		}
 	}
 
-	if err := s.dispatchFn(workerID, workerAddr, task); err != nil {
-		if proposer != nil {
-			_, _, commitCh, perr := proposer.Propose(raft.LogEntry{
-				Type:     raft.CmdFail,
-				TaskID:   taskID,
-				WorkerID: workerID,
-				Cause:    err.Error(),
-			})
-			if perr == nil {
-				<-commitCh
+	if s.dispatchFn != nil {
+		if err := s.dispatchFn(workerID, workerAddr, task); err != nil {
+			if proposer != nil {
+				_, _, commitCh, perr := proposer.Propose(raft.LogEntry{
+					Type:     raft.CmdFail,
+					TaskID:   taskID,
+					WorkerID: workerID,
+					Cause:    err.Error(),
+				})
+				if perr == nil {
+					<-commitCh
+				}
+				s.mu.Lock()
+				t := s.tasks[taskID]
+				requeued := t != nil && t.Status == TaskQueued
+				s.mu.Unlock()
+
+				if requeued {
+					return t, err
+				}
+				return nil, err
 			}
+
 			s.mu.Lock()
-			t := s.tasks[taskID]
-			requeued := t != nil && t.Status == TaskQueued
+			if task.Status != TaskAssigned || task.WorkerID != workerID {
+				s.mu.Unlock()
+				return nil, err
+			}
+			if w, ok := s.workers[workerID]; ok {
+				delete(w.ActiveTasks, task.ID)
+			}
+			s.requeueOrFailLocked(task)
+			requeued := task.Status == TaskQueued
 			s.mu.Unlock()
 
 			if requeued {
-				return t, err
+				return task, err
 			}
 			return nil, err
 		}
-
-		s.mu.Lock()
-		if task.Status != TaskAssigned || task.WorkerID != workerID {
-			s.mu.Unlock()
-			return nil, err
-		}
-		if w, ok := s.workers[workerID]; ok {
-			delete(w.ActiveTasks, task.ID)
-		}
-		s.requeueOrFailLocked(task)
-		requeued := task.Status == TaskQueued
-		s.mu.Unlock()
-
-		if requeued {
-			return task, err
-		}
-		return nil, err
 	}
 	return nil, nil
 }
@@ -748,6 +750,57 @@ func (s *Scheduler) reapDeadWorkers() {
 			}
 		}
 	}
+}
+
+// TaskView is a read-only representation of a task for the dashboard and status APIs.
+type TaskView struct {
+	ID         string     `json:"id"`
+	Payload    string     `json:"payload"`
+	Status     TaskStatus `json:"status"`
+	WorkerID   string     `json:"worker_id,omitempty"`
+	Attempts   int        `json:"attempts"`
+	MaxRetries int        `json:"max_retries"`
+	Priority   int        `json:"priority"`
+	Seq        uint64     `json:"seq"`
+}
+
+// WorkerView is a read-only representation of a worker for the dashboard and status APIs.
+type WorkerView struct {
+	ID            string    `json:"id"`
+	Addr          string    `json:"addr"`
+	LastHeartbeat time.Time `json:"last_heartbeat"`
+	ActiveTasks   int       `json:"active_tasks"`
+}
+
+// DetailedStatus returns comprehensive views of all tasks and workers.
+func (s *Scheduler) DetailedStatus() (tasks []TaskView, workers []WorkerView) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	tasks = make([]TaskView, 0, len(s.tasks))
+	for _, t := range s.tasks {
+		tasks = append(tasks, TaskView{
+			ID:         t.ID,
+			Payload:    t.Payload,
+			Status:     t.Status,
+			WorkerID:   t.WorkerID,
+			Attempts:   t.Attempts,
+			MaxRetries: t.MaxRetries,
+			Priority:   t.Priority,
+			Seq:        t.seq,
+		})
+	}
+
+	workers = make([]WorkerView, 0, len(s.workers))
+	for _, w := range s.workers {
+		workers = append(workers, WorkerView{
+			ID:            w.ID,
+			Addr:          w.Addr,
+			LastHeartbeat: w.LastHeartbeat,
+			ActiveTasks:   len(w.ActiveTasks),
+		})
+	}
+	return tasks, workers
 }
 
 // Snapshot returns a copy of current task states, useful for tests and
