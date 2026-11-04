@@ -6,6 +6,7 @@ package scheduler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -29,6 +30,7 @@ const (
 	TaskFailed    TaskStatus = "failed"
 	TaskDLQ       TaskStatus = "dlq"
 	TaskScheduled TaskStatus = "scheduled"
+	TaskCanceled  TaskStatus = "canceled"
 )
 
 type Task struct {
@@ -124,6 +126,9 @@ type Scheduler struct {
 	// (RPC today, gRPC later) without touching scheduling logic.
 	dispatchFn func(workerID, addr string, task *Task) error
 
+	// abortFn signals a worker to abort an in-flight executing task.
+	abortFn func(workerID, addr, taskID string) error
+
 	// stopCh is closed by Stop to end MonitorWorkers. stopOnce makes
 	// Stop idempotent: closing an already-closed channel panics, and
 	// shutdown paths (signal handlers, deferred cleanup, tests) can
@@ -157,6 +162,13 @@ func (s *Scheduler) SetRaftProposer(p RaftProposer) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.proposer = p
+}
+
+// SetAbortFn injects an abort function to propagate task cancellations to workers.
+func (s *Scheduler) SetAbortFn(fn func(workerID, addr, taskID string) error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.abortFn = fn
 }
 
 // KickDispatch nudges the worker monitor to sweep queued tasks immediately.
@@ -367,6 +379,69 @@ func (s *Scheduler) SubmitTaskFull(id, payload string, priority int, requiredTag
 		_ = s.dispatch(task)
 	}
 	return task, nil
+}
+
+// CancelTask cancels a queued, scheduled, or in-flight task.
+func (s *Scheduler) CancelTask(id string) error {
+	s.mu.Lock()
+	task, exists := s.tasks[id]
+	if !exists {
+		s.mu.Unlock()
+		return ErrTaskNotFound
+	}
+	if task.Status == TaskCompleted || task.Status == TaskFailed || task.Status == TaskCanceled {
+		s.mu.Unlock()
+		return fmt.Errorf("scheduler: task is already in terminal state (%s)", task.Status)
+	}
+
+	workerID := task.WorkerID
+	var workerAddr string
+	if workerID != "" {
+		if w, ok := s.workers[workerID]; ok {
+			workerAddr = w.Addr
+		}
+	}
+
+	proposer := s.proposer
+	abortFn := s.abortFn
+	if proposer == nil {
+		task.Status = TaskCanceled
+		task.WorkerID = ""
+		if w, ok := s.workers[workerID]; ok {
+			delete(w.ActiveTasks, id)
+		}
+		s.mu.Unlock()
+
+		if workerID != "" && abortFn != nil {
+			_ = abortFn(workerID, workerAddr, id)
+		}
+		return nil
+	}
+	s.mu.Unlock()
+
+	_, _, commitCh, err := proposer.Propose(raft.LogEntry{
+		Type:     raft.CmdCancel,
+		TaskID:   id,
+		WorkerID: workerID,
+		Cause:    "task canceled by user",
+	})
+	if err != nil {
+		return err
+	}
+
+	select {
+	case ok := <-commitCh:
+		if !ok {
+			return ErrNotLeader
+		}
+	case <-time.After(10 * time.Second):
+		return errors.New("scheduler: cancel timed out waiting for majority commit")
+	}
+
+	if workerID != "" && abortFn != nil {
+		_ = abortFn(workerID, workerAddr, id)
+	}
+	return nil
 }
 
 // dispatch picks the least-loaded worker and hands the task to it. If
@@ -1173,6 +1248,18 @@ func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
 	case raft.CmdPurgeDLQ:
 		if task, ok := s.tasks[entry.TaskID]; ok && task.Status == TaskDLQ {
 			delete(s.tasks, entry.TaskID)
+		}
+
+	case raft.CmdCancel:
+		if task, ok := s.tasks[entry.TaskID]; ok {
+			task.Status = TaskCanceled
+			task.LastError = entry.Cause
+			if task.WorkerID != "" {
+				if w, ok := s.workers[task.WorkerID]; ok {
+					delete(w.ActiveTasks, entry.TaskID)
+				}
+				task.WorkerID = ""
+			}
 		}
 	}
 }
