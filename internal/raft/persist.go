@@ -24,6 +24,7 @@ const (
 	CmdPurgeDLQ   CommandType = "purge_dlq"
 	CmdAddPeer    CommandType = "add_peer"
 	CmdRemovePeer CommandType = "remove_peer"
+	CmdCancel     CommandType = "canceled"
 )
 
 // LogEntry is an entry in the replicated Raft log representing a task event.
