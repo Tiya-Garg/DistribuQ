@@ -56,6 +56,10 @@ type Worker struct {
 	// activeCount tracks in-flight executions for health telemetry.
 	activeCount atomic.Int32
 
+	// activeTasks maps taskID to cancel functions for actively running tasks.
+	tasksMu     sync.Mutex
+	activeTasks map[string]context.CancelFunc
+
 	// DialOpt specifies grpc.DialOption when connecting to schedulers (e.g. mTLS).
 	DialOpt grpc.DialOption
 
@@ -133,12 +137,35 @@ func NewGRPCWorkerServer(w *Worker) *GRPCWorkerServer {
 }
 
 func (ws *GRPCWorkerServer) ExecuteTask(ctx context.Context, req *pb.ExecuteTaskRequest) (*pb.ExecuteTaskResponse, error) {
+	taskCtx, cancel := context.WithCancel(context.Background())
+	ws.w.tasksMu.Lock()
+	if ws.w.activeTasks == nil {
+		ws.w.activeTasks = make(map[string]context.CancelFunc)
+	}
+	ws.w.activeTasks[req.TaskId] = cancel
+	ws.w.tasksMu.Unlock()
+
 	go func() {
+		defer func() {
+			ws.w.tasksMu.Lock()
+			delete(ws.w.activeTasks, req.TaskId)
+			ws.w.tasksMu.Unlock()
+			cancel()
+		}()
+
 		if err := ws.w.runWithSlot(req.TaskId, req.Payload); err != nil {
+			if errors.Is(taskCtx.Err(), context.Canceled) {
+				log.Printf("worker %s: task %s canceled by scheduler", ws.w.ID, req.TaskId)
+				return
+			}
 			log.Printf("worker %s: task %s failed: %v", ws.w.ID, req.TaskId, err)
 			if rerr := ws.w.reportFailure(req.TaskId, err); rerr != nil {
 				log.Printf("worker %s: failed to report failure for %s: %v", ws.w.ID, req.TaskId, rerr)
 			}
+			return
+		}
+		if errors.Is(taskCtx.Err(), context.Canceled) {
+			log.Printf("worker %s: task %s canceled by scheduler", ws.w.ID, req.TaskId)
 			return
 		}
 		if err := ws.w.reportCompletion(req.TaskId); err != nil {
@@ -146,6 +173,18 @@ func (ws *GRPCWorkerServer) ExecuteTask(ctx context.Context, req *pb.ExecuteTask
 		}
 	}()
 	return &pb.ExecuteTaskResponse{Accepted: true}, nil
+}
+
+func (ws *GRPCWorkerServer) AbortTask(ctx context.Context, req *pb.AbortTaskRequest) (*pb.AbortTaskResponse, error) {
+	ws.w.tasksMu.Lock()
+	cancel, ok := ws.w.activeTasks[req.TaskId]
+	if ok {
+		delete(ws.w.activeTasks, req.TaskId)
+		cancel()
+	}
+	ws.w.tasksMu.Unlock()
+
+	return &pb.AbortTaskResponse{Ok: ok}, nil
 }
 
 // reportCompletion calls back into the scheduler's RPC service to mark
