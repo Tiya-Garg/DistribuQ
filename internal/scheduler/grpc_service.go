@@ -113,3 +113,48 @@ func (s *GRPCSchedulerServer) GetStatus(ctx context.Context, req *pb.GetStatusRe
 		WorkerCount: int32(workerCount),
 	}, nil
 }
+
+func (s *GRPCSchedulerServer) GetDLQ(ctx context.Context, req *pb.GetDLQRequest) (*pb.GetDLQResponse, error) {
+	dlq := s.S.GetDLQTasks()
+	tasks := make([]*pb.TaskInfo, 0, len(dlq))
+	for _, t := range dlq {
+		tasks = append(tasks, &pb.TaskInfo{
+			Id:          t.ID,
+			Payload:     t.Payload,
+			Status:      string(t.Status),
+			WorkerId:    t.WorkerID,
+			Attempts:    int32(t.Attempts),
+			MaxRetries:  int32(t.MaxRetries),
+			Priority:    int32(t.Priority),
+			RequiredTag: t.RequiredTag,
+			LastError:   t.LastError,
+		})
+	}
+	return &pb.GetDLQResponse{Tasks: tasks}, nil
+}
+
+func (s *GRPCSchedulerServer) ReplayDLQ(ctx context.Context, req *pb.ReplayDLQRequest) (*pb.ReplayDLQResponse, error) {
+	if !s.requireLeader() {
+		return nil, status.Error(codes.FailedPrecondition, ErrNotLeader.Error())
+	}
+	if err := s.S.ReplayDLQTask(req.TaskId); err != nil {
+		if errors.Is(err, ErrTaskNotFound) {
+			return nil, status.Error(codes.NotFound, err.Error())
+		}
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return &pb.ReplayDLQResponse{Ok: true}, nil
+}
+
+func (s *GRPCSchedulerServer) PurgeDLQ(ctx context.Context, req *pb.PurgeDLQRequest) (*pb.PurgeDLQResponse, error) {
+	if !s.requireLeader() {
+		return nil, status.Error(codes.FailedPrecondition, ErrNotLeader.Error())
+	}
+	if err := s.S.PurgeDLQTask(req.TaskId); err != nil {
+		if errors.Is(err, ErrTaskNotFound) {
+			return nil, status.Error(codes.NotFound, err.Error())
+		}
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return &pb.PurgeDLQResponse{Ok: true}, nil
+}
