@@ -83,6 +83,19 @@ func (s *GRPCSchedulerServer) SubmitTask(ctx context.Context, req *pb.SubmitTask
 	return &pb.SubmitTaskResponse{Ok: true}, nil
 }
 
+func (s *GRPCSchedulerServer) CancelTask(ctx context.Context, req *pb.CancelTaskRequest) (*pb.CancelTaskResponse, error) {
+	if !s.requireLeader() {
+		return nil, status.Error(codes.FailedPrecondition, ErrNotLeader.Error())
+	}
+	if err := s.S.CancelTask(req.TaskId); err != nil {
+		if errors.Is(err, ErrTaskNotFound) {
+			return nil, status.Error(codes.NotFound, err.Error())
+		}
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+	return &pb.CancelTaskResponse{Ok: true}, nil
+}
+
 func (s *GRPCSchedulerServer) CompleteTask(ctx context.Context, req *pb.CompleteTaskRequest) (*pb.CompleteTaskResponse, error) {
 	err := s.S.CompleteTaskBy(req.TaskId, req.WorkerId)
 	if err != nil {
