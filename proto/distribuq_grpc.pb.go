@@ -204,6 +204,9 @@ const (
 	SchedulerService_CompleteTask_FullMethodName   = "/distribuq.SchedulerService/CompleteTask"
 	SchedulerService_FailTask_FullMethodName       = "/distribuq.SchedulerService/FailTask"
 	SchedulerService_GetStatus_FullMethodName      = "/distribuq.SchedulerService/GetStatus"
+	SchedulerService_GetDLQ_FullMethodName         = "/distribuq.SchedulerService/GetDLQ"
+	SchedulerService_ReplayDLQ_FullMethodName      = "/distribuq.SchedulerService/ReplayDLQ"
+	SchedulerService_PurgeDLQ_FullMethodName       = "/distribuq.SchedulerService/PurgeDLQ"
 )
 
 // SchedulerServiceClient is the client API for SchedulerService service.
@@ -217,6 +220,9 @@ type SchedulerServiceClient interface {
 	CompleteTask(ctx context.Context, in *CompleteTaskRequest, opts ...grpc.CallOption) (*CompleteTaskResponse, error)
 	FailTask(ctx context.Context, in *FailTaskRequest, opts ...grpc.CallOption) (*FailTaskResponse, error)
 	GetStatus(ctx context.Context, in *GetStatusRequest, opts ...grpc.CallOption) (*GetStatusResponse, error)
+	GetDLQ(ctx context.Context, in *GetDLQRequest, opts ...grpc.CallOption) (*GetDLQResponse, error)
+	ReplayDLQ(ctx context.Context, in *ReplayDLQRequest, opts ...grpc.CallOption) (*ReplayDLQResponse, error)
+	PurgeDLQ(ctx context.Context, in *PurgeDLQRequest, opts ...grpc.CallOption) (*PurgeDLQResponse, error)
 }
 
 type schedulerServiceClient struct {
@@ -297,6 +303,36 @@ func (c *schedulerServiceClient) GetStatus(ctx context.Context, in *GetStatusReq
 	return out, nil
 }
 
+func (c *schedulerServiceClient) GetDLQ(ctx context.Context, in *GetDLQRequest, opts ...grpc.CallOption) (*GetDLQResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetDLQResponse)
+	err := c.cc.Invoke(ctx, SchedulerService_GetDLQ_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *schedulerServiceClient) ReplayDLQ(ctx context.Context, in *ReplayDLQRequest, opts ...grpc.CallOption) (*ReplayDLQResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReplayDLQResponse)
+	err := c.cc.Invoke(ctx, SchedulerService_ReplayDLQ_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *schedulerServiceClient) PurgeDLQ(ctx context.Context, in *PurgeDLQRequest, opts ...grpc.CallOption) (*PurgeDLQResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PurgeDLQResponse)
+	err := c.cc.Invoke(ctx, SchedulerService_PurgeDLQ_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SchedulerServiceServer is the server API for SchedulerService service.
 // All implementations must embed UnimplementedSchedulerServiceServer
 // for forward compatibility.
@@ -308,6 +344,9 @@ type SchedulerServiceServer interface {
 	CompleteTask(context.Context, *CompleteTaskRequest) (*CompleteTaskResponse, error)
 	FailTask(context.Context, *FailTaskRequest) (*FailTaskResponse, error)
 	GetStatus(context.Context, *GetStatusRequest) (*GetStatusResponse, error)
+	GetDLQ(context.Context, *GetDLQRequest) (*GetDLQResponse, error)
+	ReplayDLQ(context.Context, *ReplayDLQRequest) (*ReplayDLQResponse, error)
+	PurgeDLQ(context.Context, *PurgeDLQRequest) (*PurgeDLQResponse, error)
 	mustEmbedUnimplementedSchedulerServiceServer()
 }
 
@@ -338,6 +377,15 @@ func (UnimplementedSchedulerServiceServer) FailTask(context.Context, *FailTaskRe
 }
 func (UnimplementedSchedulerServiceServer) GetStatus(context.Context, *GetStatusRequest) (*GetStatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetStatus not implemented")
+}
+func (UnimplementedSchedulerServiceServer) GetDLQ(context.Context, *GetDLQRequest) (*GetDLQResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetDLQ not implemented")
+}
+func (UnimplementedSchedulerServiceServer) ReplayDLQ(context.Context, *ReplayDLQRequest) (*ReplayDLQResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReplayDLQ not implemented")
+}
+func (UnimplementedSchedulerServiceServer) PurgeDLQ(context.Context, *PurgeDLQRequest) (*PurgeDLQResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PurgeDLQ not implemented")
 }
 func (UnimplementedSchedulerServiceServer) mustEmbedUnimplementedSchedulerServiceServer() {}
 func (UnimplementedSchedulerServiceServer) testEmbeddedByValue()                          {}
@@ -486,6 +534,60 @@ func _SchedulerService_GetStatus_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SchedulerService_GetDLQ_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDLQRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SchedulerServiceServer).GetDLQ(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SchedulerService_GetDLQ_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SchedulerServiceServer).GetDLQ(ctx, req.(*GetDLQRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SchedulerService_ReplayDLQ_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReplayDLQRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SchedulerServiceServer).ReplayDLQ(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SchedulerService_ReplayDLQ_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SchedulerServiceServer).ReplayDLQ(ctx, req.(*ReplayDLQRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SchedulerService_PurgeDLQ_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PurgeDLQRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SchedulerServiceServer).PurgeDLQ(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SchedulerService_PurgeDLQ_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SchedulerServiceServer).PurgeDLQ(ctx, req.(*PurgeDLQRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SchedulerService_ServiceDesc is the grpc.ServiceDesc for SchedulerService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -520,6 +622,18 @@ var SchedulerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetStatus",
 			Handler:    _SchedulerService_GetStatus_Handler,
+		},
+		{
+			MethodName: "GetDLQ",
+			Handler:    _SchedulerService_GetDLQ_Handler,
+		},
+		{
+			MethodName: "ReplayDLQ",
+			Handler:    _SchedulerService_ReplayDLQ_Handler,
+		},
+		{
+			MethodName: "PurgeDLQ",
+			Handler:    _SchedulerService_PurgeDLQ_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

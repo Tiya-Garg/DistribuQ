@@ -137,6 +137,49 @@ message DrainWorkerResponse {
   bool ok = 1;
 }
 
+enum TaskState {
+  QUEUED = 0;
+  ASSIGNED = 1;
+  RUNNING = 2;
+  COMPLETED = 3;
+  FAILED = 4;
+  DLQ = 5;
+}
+
+message TaskInfo {
+  string id = 1;
+  string payload = 2;
+  string status = 3;
+  string worker_id = 4;
+  int32 attempts = 5;
+  int32 max_retries = 6;
+  int32 priority = 7;
+  string required_tag = 8;
+  string last_error = 9;
+}
+
+message ReplayDLQRequest {
+  string task_id = 1;
+}
+
+message ReplayDLQResponse {
+  bool ok = 1;
+}
+
+message PurgeDLQRequest {
+  string task_id = 1;
+}
+
+message PurgeDLQResponse {
+  bool ok = 1;
+}
+
+message GetDLQRequest {}
+
+message GetDLQResponse {
+  repeated TaskInfo tasks = 1;
+}
+
 service SchedulerService {
   rpc RegisterWorker(RegisterWorkerRequest) returns (RegisterWorkerResponse);
   rpc DrainWorker(DrainWorkerRequest) returns (DrainWorkerResponse);
@@ -145,6 +188,9 @@ service SchedulerService {
   rpc CompleteTask(CompleteTaskRequest) returns (CompleteTaskResponse);
   rpc FailTask(FailTaskRequest) returns (FailTaskResponse);
   rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
+  rpc GetDLQ(GetDLQRequest) returns (GetDLQResponse);
+  rpc ReplayDLQ(ReplayDLQRequest) returns (ReplayDLQResponse);
+  rpc PurgeDLQ(PurgeDLQRequest) returns (PurgeDLQResponse);
 }
 
 // -------------------------------------------------------------
