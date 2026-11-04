@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Tiya-Garg/DistribuQ/internal/cron"
+	"github.com/Tiya-Garg/DistribuQ/internal/metrics"
 	"github.com/Tiya-Garg/DistribuQ/internal/raft"
 )
 
@@ -355,6 +356,7 @@ func (s *Scheduler) SubmitTaskFull(id, payload string, priority int, requiredTag
 		if status == TaskQueued {
 			_ = s.dispatch(task)
 		}
+		metrics.DefaultRegistry.IncSubmitted()
 		return task, nil
 	}
 	s.mu.Unlock()
@@ -392,6 +394,7 @@ func (s *Scheduler) SubmitTaskFull(id, payload string, priority int, requiredTag
 	if task != nil && task.Status == TaskQueued {
 		_ = s.dispatch(task)
 	}
+	metrics.DefaultRegistry.IncSubmitted()
 	return task, nil
 }
 
@@ -429,6 +432,7 @@ func (s *Scheduler) CancelTask(id string) error {
 		if workerID != "" && abortFn != nil {
 			_ = abortFn(workerID, workerAddr, id)
 		}
+		metrics.DefaultRegistry.IncCanceled()
 		return nil
 	}
 	s.mu.Unlock()
@@ -455,6 +459,7 @@ func (s *Scheduler) CancelTask(id string) error {
 	if workerID != "" && abortFn != nil {
 		_ = abortFn(workerID, workerAddr, id)
 	}
+	metrics.DefaultRegistry.IncCanceled()
 	return nil
 }
 
@@ -737,10 +742,12 @@ func (s *Scheduler) requeueOrFailWithCauseLocked(task *Task, cause string) {
 		task.WorkerID = ""
 		delay := calculateBackoff(task.Attempts)
 		task.NextRetryAt = time.Now().Add(delay)
+		metrics.DefaultRegistry.IncRetried()
 	} else {
 		task.Status = TaskDLQ
 		task.WorkerID = ""
 		task.NextRetryAt = time.Time{}
+		metrics.DefaultRegistry.IncDLQ()
 	}
 }
 
@@ -844,6 +851,7 @@ func (s *Scheduler) completeTask(taskID, workerID string, checkWorker bool) erro
 			delete(w.ActiveTasks, taskID)
 		}
 		s.mu.Unlock()
+		metrics.DefaultRegistry.IncCompleted()
 		return nil
 	}
 	s.mu.Unlock()
@@ -864,6 +872,7 @@ func (s *Scheduler) completeTask(taskID, workerID string, checkWorker bool) erro
 	case <-time.After(10 * time.Second):
 		return errors.New("scheduler: complete timed out waiting for commit")
 	}
+	metrics.DefaultRegistry.IncCompleted()
 	return nil
 }
 
@@ -911,6 +920,7 @@ func (s *Scheduler) failTask(taskID, workerID string, checkWorker bool) error {
 		if requeued {
 			s.dispatch(task)
 		}
+		metrics.DefaultRegistry.IncFailed()
 		return nil
 	}
 	s.mu.Unlock()
@@ -941,6 +951,7 @@ func (s *Scheduler) failTask(taskID, workerID string, checkWorker bool) error {
 	if requeued {
 		s.dispatch(t)
 	}
+	metrics.DefaultRegistry.IncFailed()
 	return nil
 }
 
@@ -1021,6 +1032,8 @@ func (s *Scheduler) triggerCronJobsLocked() {
 					MaxRetries:  3,
 					seq:         s.nextSeq,
 				}
+				metrics.DefaultRegistry.IncCron()
+				metrics.DefaultRegistry.IncSubmitted()
 			}
 			job.NextRun = job.Schedule.Next(now)
 		}
