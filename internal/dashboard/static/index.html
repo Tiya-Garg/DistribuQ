@@ -319,6 +319,10 @@
             <option value="0">Low (0)</option>
           </select>
         </div>
+        <div class="form-group" style="flex: 1;">
+          <label>Required Tag</label>
+          <input type="text" id="task-tag" placeholder="e.g. gpu, highmem">
+        </div>
         <button type="submit" class="btn-primary" id="btn-submit">Submit Task</button>
       </div>
     </form>
@@ -335,12 +339,13 @@
           <tr>
             <th>ID</th>
             <th>Address</th>
-            <th>Active</th>
+            <th>Tags</th>
+            <th>Status / Load</th>
             <th>Heartbeat</th>
           </tr>
         </thead>
         <tbody id="workers-tbody">
-          <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No workers registered</td></tr>
+          <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No workers registered</td></tr>
         </tbody>
       </table>
     </div>
@@ -355,13 +360,14 @@
           <tr>
             <th>ID</th>
             <th>Priority</th>
+            <th>Tag</th>
             <th>Status</th>
             <th>Worker</th>
             <th>Payload</th>
           </tr>
         </thead>
         <tbody id="tasks-tbody">
-          <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No tasks submitted</td></tr>
+          <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No tasks submitted</td></tr>
         </tbody>
       </table>
     </div>
@@ -388,12 +394,13 @@
       const id = document.getElementById('task-id').value.trim();
       const payload = document.getElementById('task-payload').value.trim();
       const priority = parseInt(document.getElementById('task-priority').value, 10);
+      const tag = document.getElementById('task-tag').value.trim();
 
       try {
         const resp = await fetch('/api/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ task_id: id, payload, priority })
+          body: JSON.stringify({ task_id: id, payload, priority, required_tag: tag })
         });
         const res = await resp.json();
         if (resp.ok && res.ok) {
@@ -447,16 +454,25 @@
 
       const workersTbody = document.getElementById('workers-tbody');
       if (workers.length === 0) {
-        workersTbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">No workers registered</td></tr>';
+        workersTbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No workers registered</td></tr>';
       } else {
-        workersTbody.innerHTML = workers.map(w => `
-          <tr>
-            <td style="font-weight: 600;">${w.id}</td>
-            <td style="color: var(--text-muted);">${w.addr}</td>
-            <td><span class="pill pill-assigned">${w.active_tasks}</span></td>
-            <td>${timeAgo(w.last_heartbeat)}</td>
-          </tr>
-        `).join('');
+        workersTbody.innerHTML = workers.map(w => {
+          const tagBadges = (w.tags && w.tags.length > 0)
+            ? w.tags.map(t => `<span class="badge" style="background: var(--card-bg); border: 1px solid var(--border); font-size: 11px;">${t}</span>`).join(' ')
+            : '<span style="color: var(--text-muted);">-</span>';
+          const statusText = w.draining
+            ? '<span class="pill pill-failed">draining</span>'
+            : `<span class="pill pill-assigned">${w.active_tasks}${w.max_concurrent > 0 ? '/' + w.max_concurrent : ''} active</span>`;
+          return `
+            <tr>
+              <td style="font-weight: 600;">${w.id}</td>
+              <td style="color: var(--text-muted);">${w.addr}</td>
+              <td>${tagBadges}</td>
+              <td>${statusText}</td>
+              <td>${timeAgo(w.last_heartbeat)}</td>
+            </tr>
+          `;
+        }).join('');
       }
 
       // Tasks
@@ -476,12 +492,13 @@
 
       const tasksTbody = document.getElementById('tasks-tbody');
       if (tasks.length === 0) {
-        tasksTbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No tasks submitted</td></tr>';
+        tasksTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No tasks submitted</td></tr>';
       } else {
         tasksTbody.innerHTML = tasks.slice(0, 30).map(t => `
           <tr>
             <td style="font-weight: 600;">${t.id}</td>
             <td>${formatPriority(t.priority)}</td>
+            <td>${t.required_tag ? `<span class="badge" style="background: var(--card-bg); border: 1px solid var(--border); font-size: 11px;">${t.required_tag}</span>` : '<span style="color: var(--text-muted);">-</span>'}</td>
             <td><span class="pill pill-${t.status}">${t.status}</span></td>
             <td>${t.worker_id || '<span style="color: var(--text-muted);">-</span>'}</td>
             <td style="font-family: monospace; font-size: 12px; color: var(--text-muted);">${t.payload}</td>
