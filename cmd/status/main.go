@@ -10,16 +10,32 @@ import (
 	"sort"
 	"time"
 
+	"github.com/Tiya-Garg/DistribuQ/internal/security"
 	pb "github.com/Tiya-Garg/DistribuQ/proto"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
 	addr := flag.String("scheduler", "localhost:8000", "scheduler replica address to query")
+	caCert := flag.String("ca-cert", "", "path to CA root certificate for mTLS")
+	tlsCert := flag.String("tls-cert", "", "path to client TLS certificate for mTLS")
+	tlsKey := flag.String("tls-key", "", "path to client TLS private key for mTLS")
+	serverName := flag.String("server-name", "localhost", "expected scheduler TLS server name (SAN) for dial verification")
 	flag.Parse()
 
-	conn, err := grpc.NewClient(*addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	tlsCfg := &security.TLSConfig{
+		CACertPath: *caCert,
+		CertPath:   *tlsCert,
+		KeyPath:    *tlsKey,
+		ServerName: *serverName,
+	}
+
+	dialOpt, err := tlsCfg.DialOption()
+	if err != nil {
+		log.Fatalf("failed to configure TLS dial options: %v", err)
+	}
+
+	conn, err := grpc.NewClient(*addr, dialOpt)
 	if err != nil {
 		log.Fatalf("dial %s failed: %v", *addr, err)
 	}
