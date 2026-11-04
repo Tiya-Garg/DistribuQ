@@ -624,7 +624,54 @@ func (n *Node) applyCommittedLocked() []LogEntry {
 		n.lastApplied++
 		offset := n.lastApplied - n.lastIncludedIndex - 1
 		if offset >= 0 && offset < len(n.log) {
-			toApply = append(toApply, n.log[offset])
+			entry := n.log[offset]
+			toApply = append(toApply, entry)
+
+			// Apply cluster membership changes (§6)
+			switch entry.Type {
+			case CmdAddPeer:
+				if entry.PeerID != "" && entry.PeerID != n.ID {
+					exists := false
+					for _, p := range n.Peers {
+						if p == entry.PeerID {
+							exists = true
+							break
+						}
+					}
+					if !exists {
+						n.Peers = append(n.Peers, entry.PeerID)
+						if n.state == Leader {
+							if n.nextIndex == nil {
+								n.nextIndex = make(map[string]int)
+							}
+							if n.matchIndex == nil {
+								n.matchIndex = make(map[string]int)
+							}
+							n.nextIndex[entry.PeerID] = n.lastLogIndexLocked() + 1
+							n.matchIndex[entry.PeerID] = 0
+						}
+					}
+				}
+			case CmdRemovePeer:
+				if entry.PeerID != "" {
+					var newPeers []string
+					for _, p := range n.Peers {
+						if p != entry.PeerID {
+							newPeers = append(newPeers, p)
+						}
+					}
+					n.Peers = newPeers
+					if n.state == Leader {
+						delete(n.nextIndex, entry.PeerID)
+						delete(n.matchIndex, entry.PeerID)
+					}
+					if entry.PeerID == n.ID {
+						// This node was removed from the cluster
+						n.state = Follower
+						n.leaderID = ""
+					}
+				}
+			}
 		}
 	}
 	return toApply
@@ -947,4 +994,69 @@ func (n *Node) Log() []LogEntry {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	return append([]LogEntry{}, n.log...)
+}
+
+// ClusterMembership returns the current known leader and the list of active peers.
+func (n *Node) ClusterMembership() (leaderID string, peers []string) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.leaderID, append([]string{}, n.Peers...)
+}
+
+// AddPeer proposes adding a new peer to the Raft cluster configuration (§6).
+func (n *Node) AddPeer(peerID, peerAddr string) (<-chan bool, error) {
+	n.mu.Lock()
+	if n.state != Leader {
+		n.mu.Unlock()
+		return nil, errors.New("raft: only leader can propose configuration changes")
+	}
+	if peerID == "" || peerID == n.ID {
+		n.mu.Unlock()
+		return nil, errors.New("raft: invalid peer id")
+	}
+	for _, p := range n.Peers {
+		if p == peerID {
+			n.mu.Unlock()
+			return nil, errors.New("raft: peer already exists in cluster")
+		}
+	}
+	n.mu.Unlock()
+
+	_, _, commitCh, err := n.Propose(LogEntry{
+		Type:     CmdAddPeer,
+		PeerID:   peerID,
+		PeerAddr: peerAddr,
+	})
+	return commitCh, err
+}
+
+// RemovePeer proposes removing a peer from the Raft cluster configuration (§6).
+func (n *Node) RemovePeer(peerID string) (<-chan bool, error) {
+	n.mu.Lock()
+	if n.state != Leader {
+		n.mu.Unlock()
+		return nil, errors.New("raft: only leader can propose configuration changes")
+	}
+	if peerID == "" {
+		n.mu.Unlock()
+		return nil, errors.New("raft: invalid peer id")
+	}
+	found := false
+	for _, p := range n.Peers {
+		if p == peerID {
+			found = true
+			break
+		}
+	}
+	if !found && peerID != n.ID {
+		n.mu.Unlock()
+		return nil, errors.New("raft: peer not found in cluster")
+	}
+	n.mu.Unlock()
+
+	_, _, commitCh, err := n.Propose(LogEntry{
+		Type:   CmdRemovePeer,
+		PeerID: peerID,
+	})
+	return commitCh, err
 }
