@@ -73,6 +73,35 @@ func (t *GRPCTransport) invalidate(peerID string) {
 	}
 }
 
+// SetPeerAddr registers or updates the dial address for a peer (supporting dynamic membership).
+func (t *GRPCTransport) SetPeerAddr(peerID, addr string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if oldAddr, ok := t.peerAddrs[peerID]; ok && oldAddr == addr {
+		return
+	}
+	t.peerAddrs[peerID] = addr
+	if conn, ok := t.conns[peerID]; ok {
+		_ = conn.Close()
+		delete(t.conns, peerID)
+		delete(t.clients, peerID)
+	}
+}
+
+// RemovePeer removes a peer from the transport configuration and closes its connection.
+func (t *GRPCTransport) RemovePeer(peerID string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	delete(t.peerAddrs, peerID)
+	if conn, ok := t.conns[peerID]; ok {
+		_ = conn.Close()
+		delete(t.conns, peerID)
+		delete(t.clients, peerID)
+	}
+}
+
 // Close closes all open peer connections.
 func (t *GRPCTransport) Close() {
 	t.mu.Lock()
