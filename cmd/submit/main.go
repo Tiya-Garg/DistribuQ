@@ -43,6 +43,8 @@ func main() {
 	payload := flag.String("payload", "hello", "task payload")
 	priorityFlag := flag.String("priority", "normal", "task priority: low, normal, high, critical (or 0-3)")
 	tagFlag := flag.String("tag", "", "optional required worker capability tag (e.g. gpu, highmem)")
+	delay := flag.Duration("delay", 0, "optional execution delay before task runs (e.g. 5s, 1m)")
+	runAtFlag := flag.String("run-at", "", "optional execution timestamp (RFC3339 format, e.g. 2026-11-04T18:00:00Z)")
 	replayDLQ := flag.Bool("replay-dlq", false, "replay task from DLQ back into active queue")
 	purgeDLQ := flag.Bool("purge-dlq", false, "purge task from DLQ")
 	caCert := flag.String("ca-cert", "", "path to CA root certificate for mTLS")
@@ -57,6 +59,17 @@ func main() {
 
 	priority := parsePriority(*priorityFlag)
 	addrs := strings.Split(*addrsFlag, ",")
+
+	var runAtUnixMs int64
+	if *delay > 0 {
+		runAtUnixMs = time.Now().Add(*delay).UnixMilli()
+	} else if *runAtFlag != "" {
+		t, err := time.Parse(time.RFC3339, *runAtFlag)
+		if err != nil {
+			log.Fatalf("invalid -run-at format: %v (expected RFC3339)", err)
+		}
+		runAtUnixMs = t.UnixMilli()
+	}
 
 	tlsCfg := &security.TLSConfig{
 		CACertPath: *caCert,
@@ -106,6 +119,7 @@ func main() {
 				Payload:     *payload,
 				Priority:    priority,
 				RequiredTag: *tagFlag,
+				RunAtUnixMs: runAtUnixMs,
 			})
 			callErr = sErr
 			if callErr == nil {
