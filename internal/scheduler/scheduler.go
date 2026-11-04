@@ -27,6 +27,7 @@ const (
 	TaskRunning   TaskStatus = "running"
 	TaskCompleted TaskStatus = "completed"
 	TaskFailed    TaskStatus = "failed"
+	TaskDLQ       TaskStatus = "dlq"
 )
 
 type Task struct {
@@ -38,6 +39,8 @@ type Task struct {
 	MaxRetries  int
 	Priority    int
 	RequiredTag string
+	LastError   string
+	NextRetryAt time.Time
 
 	// seq is the task's submission order, used to dispatch tasks that
 	// were left queued in first-come, first-served order.
@@ -443,7 +446,7 @@ func (s *Scheduler) dispatchAttempt(task *Task) (*Task, error) {
 			if w, ok := s.workers[workerID]; ok {
 				delete(w.ActiveTasks, task.ID)
 			}
-			s.requeueOrFailLocked(task)
+			s.requeueOrFailWithCauseLocked(task, err.Error())
 			requeued := task.Status == TaskQueued
 			s.mu.Unlock()
 
@@ -477,31 +480,59 @@ func (s *Scheduler) proposeAssign(taskID, workerID string) error {
 	}
 }
 
+// BaseRetryBackoff is the starting delay for exponential retry backoff.
+// Defaults to 0 for instantaneous dispatch, configurable for backoff policies or tests.
+var BaseRetryBackoff = 0 * time.Millisecond
+
+// MaxRetryBackoff caps the exponential backoff delay.
+var MaxRetryBackoff = 10 * time.Second
+
+// calculateBackoff calculates the exponential backoff duration based on attempts.
+func calculateBackoff(attempts int) time.Duration {
+	if attempts <= 0 {
+		return 0
+	}
+	// 2^(attempts-1) * BaseRetryBackoff
+	shift := attempts - 1
+	if shift > 6 {
+		shift = 6
+	}
+	multiplier := 1 << shift
+	backoff := time.Duration(multiplier) * BaseRetryBackoff
+	if backoff > MaxRetryBackoff {
+		backoff = MaxRetryBackoff
+	}
+	return backoff
+}
+
 // requeueOrFailLocked decides a task's fate after it comes off a
 // worker without completing (dispatch failure, execution failure, or
 // worker death): retry it if attempts remain, otherwise mark it
-// permanently failed. Callers must hold s.mu and must have already
+// dead-lettered (TaskDLQ). Callers must hold s.mu and must have already
 // cleared the task out of its former worker's ActiveTasks.
-//
-// The worker the task is coming off of is remembered in task.tried
-// first, so the retry goes somewhere else when it can. Without that, a
-// worker that keeps failing dispatches looks like the least loaded one
-// (its failed tasks never stay on it), so least-loaded selection keeps
-// sending it the very tasks it just failed, and they run out of
-// attempts while healthy workers sit idle.
 func (s *Scheduler) requeueOrFailLocked(task *Task) {
+	s.requeueOrFailWithCauseLocked(task, "")
+}
+
+func (s *Scheduler) requeueOrFailWithCauseLocked(task *Task, cause string) {
 	if task.WorkerID != "" {
 		if task.tried == nil {
 			task.tried = make(map[string]bool)
 		}
 		task.tried[task.WorkerID] = true
 	}
+	if cause != "" {
+		task.LastError = cause
+	}
 	if task.Attempts < task.MaxRetries {
 		task.Status = TaskQueued
 		task.WorkerID = ""
+		delay := calculateBackoff(task.Attempts)
+		task.NextRetryAt = time.Now().Add(delay)
 	} else {
-		task.Status = TaskFailed
+		task.Status = TaskDLQ
 		task.WorkerID = ""
+		task.NextRetryAt = time.Time{}
 	}
 }
 
@@ -665,7 +696,7 @@ func (s *Scheduler) failTask(taskID, workerID string, checkWorker bool) error {
 		if w, ok := s.workers[task.WorkerID]; ok {
 			delete(w.ActiveTasks, taskID)
 		}
-		s.requeueOrFailLocked(task)
+		s.requeueOrFailWithCauseLocked(task, "worker reported failure")
 		requeued := task.Status == TaskQueued
 		s.mu.Unlock()
 
@@ -772,9 +803,13 @@ func (s *Scheduler) dispatchQueued() {
 		s.mu.Unlock()
 		return
 	}
+	now := time.Now()
 	var queued []*Task
 	for _, t := range s.tasks {
 		if t.Status == TaskQueued {
+			if !t.NextRetryAt.IsZero() && now.Before(t.NextRetryAt) {
+				continue // backoff delay has not elapsed yet
+			}
 			queued = append(queued, t)
 		}
 	}
@@ -839,7 +874,7 @@ func (s *Scheduler) reapDeadWorkers() {
 	if proposer == nil {
 		for _, dt := range deadTasks {
 			if t, ok := s.tasks[dt.TaskID]; ok && t.WorkerID == dt.WorkerID {
-				s.requeueOrFailLocked(t)
+				s.requeueOrFailWithCauseLocked(t, "worker heartbeat timeout")
 			}
 		}
 		s.mu.Unlock()
@@ -876,6 +911,7 @@ type TaskView struct {
 	MaxRetries  int        `json:"max_retries"`
 	Priority    int        `json:"priority"`
 	RequiredTag string     `json:"required_tag,omitempty"`
+	LastError   string     `json:"last_error,omitempty"`
 	Seq         uint64     `json:"seq"`
 }
 
@@ -907,6 +943,7 @@ func (s *Scheduler) DetailedStatus() (tasks []TaskView, workers []WorkerView) {
 			MaxRetries:  t.MaxRetries,
 			Priority:    t.Priority,
 			RequiredTag: t.RequiredTag,
+			LastError:   t.LastError,
 			Seq:         t.seq,
 		})
 	}
@@ -951,6 +988,7 @@ type TaskSnapshot struct {
 	Seq         uint64     `json:"seq"`
 	Priority    int        `json:"priority,omitempty"`
 	RequiredTag string     `json:"required_tag,omitempty"`
+	LastError   string     `json:"last_error,omitempty"`
 }
 
 type schedulerSnapshotData struct {
@@ -975,6 +1013,7 @@ func (s *Scheduler) EncodeState() ([]byte, error) {
 			Seq:         t.seq,
 			Priority:    t.Priority,
 			RequiredTag: t.RequiredTag,
+			LastError:   t.LastError,
 		}
 	}
 	return json.Marshal(schedulerSnapshotData{
@@ -1007,6 +1046,7 @@ func (s *Scheduler) RestoreFromSnapshot(data []byte) error {
 			MaxRetries:  ts.MaxRetries,
 			Priority:    ts.Priority,
 			RequiredTag: ts.RequiredTag,
+			LastError:   ts.LastError,
 			seq:         ts.Seq,
 			tried:       make(map[string]bool),
 		}
@@ -1075,7 +1115,22 @@ func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
 			if w, ok := s.workers[task.WorkerID]; ok {
 				delete(w.ActiveTasks, entry.TaskID)
 			}
-			s.requeueOrFailLocked(task)
+			s.requeueOrFailWithCauseLocked(task, entry.Cause)
+		}
+
+	case raft.CmdReplayDLQ:
+		if task, ok := s.tasks[entry.TaskID]; ok && task.Status == TaskDLQ {
+			task.Status = TaskQueued
+			task.Attempts = 0
+			task.LastError = ""
+			task.WorkerID = ""
+			task.tried = make(map[string]bool)
+			task.NextRetryAt = time.Time{}
+		}
+
+	case raft.CmdPurgeDLQ:
+		if task, ok := s.tasks[entry.TaskID]; ok && task.Status == TaskDLQ {
+			delete(s.tasks, entry.TaskID)
 		}
 	}
 }
@@ -1093,4 +1148,113 @@ func (s *Scheduler) RebuildQueueOnLeadership() {
 	s.mu.Unlock()
 
 	s.sweepAsync()
+}
+
+// GetDLQTasks returns all tasks currently in Dead Letter Queue (TaskDLQ).
+func (s *Scheduler) GetDLQTasks() []TaskView {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var dlq []TaskView
+	for _, t := range s.tasks {
+		if t.Status == TaskDLQ {
+			dlq = append(dlq, TaskView{
+				ID:          t.ID,
+				Payload:     t.Payload,
+				Status:      t.Status,
+				WorkerID:    t.WorkerID,
+				Attempts:    t.Attempts,
+				MaxRetries:  t.MaxRetries,
+				Priority:    t.Priority,
+				RequiredTag: t.RequiredTag,
+				LastError:   t.LastError,
+				Seq:         t.seq,
+			})
+		}
+	}
+	return dlq
+}
+
+// ReplayDLQTask re-queues a dead-lettered task, resetting attempts so it can be retried.
+func (s *Scheduler) ReplayDLQTask(taskID string) error {
+	s.mu.Lock()
+	task, ok := s.tasks[taskID]
+	if !ok {
+		s.mu.Unlock()
+		return ErrTaskNotFound
+	}
+	if task.Status != TaskDLQ {
+		s.mu.Unlock()
+		return errors.New("scheduler: task is not in DLQ")
+	}
+	proposer := s.proposer
+	if proposer == nil {
+		task.Status = TaskQueued
+		task.Attempts = 0
+		task.LastError = ""
+		task.WorkerID = ""
+		task.tried = make(map[string]bool)
+		task.NextRetryAt = time.Time{}
+		s.mu.Unlock()
+		s.sweepAsync()
+		return nil
+	}
+	s.mu.Unlock()
+
+	_, _, commitCh, err := proposer.Propose(raft.LogEntry{
+		Type:   raft.CmdReplayDLQ,
+		TaskID: taskID,
+	})
+	if err != nil {
+		return err
+	}
+	select {
+	case ok := <-commitCh:
+		if !ok {
+			return ErrNotLeader
+		}
+	case <-time.After(10 * time.Second):
+		return errors.New("scheduler: replay dlq timed out waiting for commit")
+	}
+
+	s.sweepAsync()
+	return nil
+}
+
+// PurgeDLQTask removes a dead-lettered task completely from the scheduler.
+func (s *Scheduler) PurgeDLQTask(taskID string) error {
+	s.mu.Lock()
+	task, ok := s.tasks[taskID]
+	if !ok {
+		s.mu.Unlock()
+		return ErrTaskNotFound
+	}
+	if task.Status != TaskDLQ {
+		s.mu.Unlock()
+		return errors.New("scheduler: task is not in DLQ")
+	}
+	proposer := s.proposer
+	if proposer == nil {
+		delete(s.tasks, taskID)
+		s.mu.Unlock()
+		return nil
+	}
+	s.mu.Unlock()
+
+	_, _, commitCh, err := proposer.Propose(raft.LogEntry{
+		Type:   raft.CmdPurgeDLQ,
+		TaskID: taskID,
+	})
+	if err != nil {
+		return err
+	}
+	select {
+	case ok := <-commitCh:
+		if !ok {
+			return ErrNotLeader
+		}
+	case <-time.After(10 * time.Second):
+		return errors.New("scheduler: purge dlq timed out waiting for commit")
+	}
+	return nil
 }
