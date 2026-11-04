@@ -45,6 +45,7 @@ func main() {
 	tagFlag := flag.String("tag", "", "optional required worker capability tag (e.g. gpu, highmem)")
 	delay := flag.Duration("delay", 0, "optional execution delay before task runs (e.g. 5s, 1m)")
 	runAtFlag := flag.String("run-at", "", "optional execution timestamp (RFC3339 format, e.g. 2026-11-04T18:00:00Z)")
+	cancelFlag := flag.Bool("cancel", false, "cancel/abort a task by ID")
 	replayDLQ := flag.Bool("replay-dlq", false, "replay task from DLQ back into active queue")
 	purgeDLQ := flag.Bool("purge-dlq", false, "purge task from DLQ")
 	caCert := flag.String("ca-cert", "", "path to CA root certificate for mTLS")
@@ -101,7 +102,13 @@ func main() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 
 		var callErr error
-		if *replayDLQ {
+		if *cancelFlag {
+			resp, cErr := client.CancelTask(ctx, &pb.CancelTaskRequest{TaskId: *id})
+			callErr = cErr
+			if callErr == nil {
+				log.Printf("canceled task %s via %s: ok=%v", *id, addr, resp.Ok)
+			}
+		} else if *replayDLQ {
 			resp, rErr := client.ReplayDLQ(ctx, &pb.ReplayDLQRequest{TaskId: *id})
 			callErr = rErr
 			if callErr == nil {
