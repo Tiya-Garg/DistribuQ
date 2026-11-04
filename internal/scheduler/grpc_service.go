@@ -81,6 +81,9 @@ func (s *GRPCSchedulerServer) SubmitTask(ctx context.Context, req *pb.SubmitTask
 		}
 		return nil, status.Error(codes.Internal, err.Error())
 	}
+	if task == nil {
+		return nil, status.Error(codes.Internal, "scheduler: task committed but not found in state machine")
+	}
 	return &pb.SubmitTaskResponse{Ok: true, TaskId: task.ID}, nil
 }
 

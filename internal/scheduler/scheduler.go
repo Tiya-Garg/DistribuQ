@@ -171,6 +171,8 @@ type Scheduler struct {
 
 	// idempotencyKeys maps an idempotency key to its corresponding task ID.
 	idempotencyKeys map[string]string
+
+	workerTimeout time.Duration
 }
 
 func NewScheduler(dispatchFn func(workerID, addr string, task *Task) error) *Scheduler {
@@ -197,6 +199,20 @@ func (s *Scheduler) SetAbortFn(fn func(workerID, addr, taskID string) error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.abortFn = fn
+}
+
+// SetWorkerTimeout overrides the worker heartbeat expiration timeout for this scheduler instance.
+func (s *Scheduler) SetWorkerTimeout(d time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.workerTimeout = d
+}
+
+func (s *Scheduler) workerTimeoutLocked() time.Duration {
+	if s.workerTimeout > 0 {
+		return s.workerTimeout
+	}
+	return WorkerTimeout
 }
 
 // KickDispatch nudges the worker monitor to sweep queued tasks immediately.
@@ -536,7 +552,11 @@ func (s *Scheduler) SubmitTaskIdempotent(id, payload string, priority int, requi
 	task := s.tasks[id]
 	s.mu.Unlock()
 
-	if task != nil && task.Status == TaskQueued {
+	if task == nil {
+		return nil, errors.New("scheduler: task committed but not found in state machine")
+	}
+
+	if task.Status == TaskQueued {
 		_ = s.dispatch(task)
 	}
 	metrics.DefaultRegistry.IncSubmitted()
@@ -916,7 +936,7 @@ func (s *Scheduler) pickWorkerForTaskLocked(task *Task, avoid map[string]bool) *
 	var best, bestAvoided *WorkerInfo
 	now := time.Now()
 	for _, w := range s.workers {
-		if now.Sub(w.LastHeartbeat) > WorkerTimeout {
+		if now.Sub(w.LastHeartbeat) > s.workerTimeoutLocked() {
 			continue // treat as dead, skip
 		}
 		if w.Draining {
@@ -1263,7 +1283,7 @@ func (s *Scheduler) reapDeadWorkers() {
 	s.mu.Lock()
 	var deadTasks []struct{ TaskID, WorkerID string }
 	for id, w := range s.workers {
-		if now.Sub(w.LastHeartbeat) <= WorkerTimeout {
+		if now.Sub(w.LastHeartbeat) <= s.workerTimeoutLocked() {
 			continue
 		}
 		for taskID := range w.ActiveTasks {

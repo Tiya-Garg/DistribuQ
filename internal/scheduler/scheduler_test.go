@@ -87,9 +87,7 @@ func TestDeadWorkerTasksAreReassigned(t *testing.T) {
 	// Simulate w1 going silent past WorkerTimeout by manipulating time
 	// indirectly: we sleep past the timeout instead of mocking time,
 	// keeping the test simple and avoiding a fake clock dependency.
-	origTimeout := WorkerTimeout
-	setWorkerTimeoutForTest(t, 50*time.Millisecond)
-	defer setWorkerTimeoutForTest(t, origTimeout)
+	s.SetWorkerTimeout(50 * time.Millisecond)
 
 	time.Sleep(100 * time.Millisecond)
 	s.Heartbeat("w2") // w2 stays alive; only w1 has gone silent
@@ -1248,14 +1246,3 @@ func TestPriorityScheduling(t *testing.T) {
 func taskID(i int) string {
 	return "t" + string(rune('0'+i))
 }
-
-// setWorkerTimeoutForTest allows tests to shrink WorkerTimeout so tests
-// run fast; production code always uses the default constant.
-func setWorkerTimeoutForTest(t *testing.T, d time.Duration) {
-	t.Helper()
-	workerTimeoutMu.Lock()
-	defer workerTimeoutMu.Unlock()
-	WorkerTimeout = d
-}
-
-var workerTimeoutMu sync.Mutex
