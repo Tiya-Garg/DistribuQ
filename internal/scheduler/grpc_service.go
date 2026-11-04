@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"time"
 
 	pb "github.com/Tiya-Garg/DistribuQ/proto"
 	"google.golang.org/grpc/codes"
@@ -63,7 +64,11 @@ func (s *GRPCSchedulerServer) SubmitTask(ctx context.Context, req *pb.SubmitTask
 	if !s.requireLeader() {
 		return nil, status.Error(codes.FailedPrecondition, ErrNotLeader.Error())
 	}
-	if _, err := s.S.SubmitTaskWithOpts(req.TaskId, req.Payload, int(req.Priority), req.RequiredTag); err != nil {
+	var runAt time.Time
+	if req.RunAtUnixMs > 0 {
+		runAt = time.UnixMilli(req.RunAtUnixMs)
+	}
+	if _, err := s.S.SubmitTaskFull(req.TaskId, req.Payload, int(req.Priority), req.RequiredTag, runAt); err != nil {
 		if errors.Is(err, ErrDuplicateTask) {
 			return nil, status.Error(codes.AlreadyExists, err.Error())
 		}
