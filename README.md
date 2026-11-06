@@ -66,8 +66,11 @@ go run ./cmd/scheduler -id s3 -addr :8002 -peers s1=:8000,s2=:8001 -data-dir /tm
 go run ./cmd/worker -id w1 -addr :9001 -scheduler localhost:8000,localhost:8001,localhost:8002 -tags gpu,highmem -max-concurrent 4
 go run ./cmd/worker -id w2 -addr :9002 -scheduler localhost:8000,localhost:8001,localhost:8002 -tags general
 
-# terminal 6: submit a task (supports priority and capability tags)
-go run ./cmd/submit -id task1 -payload "echo hello && sleep 1" -schedulers localhost:8000,localhost:8001,localhost:8002 -priority high -tag gpu
+# terminal 6: submit a task (supports priority, capability tags, and idempotency deduplication)
+go run ./cmd/submit -id task1 -payload "echo hello && sleep 1" -schedulers localhost:8000,localhost:8001,localhost:8002 -priority high -tag gpu -idempotency-key order-101
+
+# duplicate submission with same key is safely deduplicated without re-executing
+go run ./cmd/submit -id task1-retry -payload "echo hello && sleep 1" -schedulers localhost:8000,localhost:8001,localhost:8002 -idempotency-key order-101
 
 # check cluster state (ask any replica)
 go run ./cmd/status -scheduler localhost:8000
