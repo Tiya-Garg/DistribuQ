@@ -1,9 +1,16 @@
-.PHONY: all build test test-race vet fmt fmt-check chaos clean
+.PHONY: all build test test-race vet fmt fmt-check proto proto-check chaos clean
 
 BIN_DIR := bin
 CMDS := scheduler worker submit status chaos
 
 all: build
+
+proto:
+	@which protoc > /dev/null 2>&1 || (echo "protoc not found in PATH" && exit 1)
+	protoc -I proto --go_out=proto --go_opt=paths=source_relative proto/distribuq.proto
+
+proto-check: proto
+	@git diff --exit-code proto/distribuq.pb.go || (echo "proto/distribuq.pb.go is out of date with distribuq.proto; run 'make proto'" && exit 1)
 
 build:
 	@mkdir -p $(BIN_DIR)
