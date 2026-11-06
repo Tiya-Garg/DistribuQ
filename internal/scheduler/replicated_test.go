@@ -101,4 +101,79 @@ func TestReplicatedSubmissionAndIdempotency(t *testing.T) {
 	if !respT4.Ok || respT4.TaskId != "t2" {
 		t.Fatalf("expected retry to return original TaskId t2, got: %s", respT4.TaskId)
 	}
+
+	// 4. Verify TaskByIdempotencyKey helper
+	tLookup, found := sched.TaskByIdempotencyKey("key-shared-1")
+	if !found || tLookup == nil {
+		t.Fatalf("expected to find task by idempotency key 'key-shared-1'")
+	}
+	if tLookup.ID != "t2" {
+		t.Fatalf("expected lookup to return task 't2', got %q", tLookup.ID)
+	}
+}
+
+func TestConcurrentIdempotentSubmissions(t *testing.T) {
+	node := raft.NewNode("s-concurrent", nil, nil)
+	go node.Run()
+	defer node.Stop()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if node.State() == raft.Leader {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if node.State() != raft.Leader {
+		t.Fatalf("expected node to become leader, got %v", node.State())
+	}
+
+	fd := &fakeDispatch{}
+	sched := NewScheduler(fd.fn)
+	defer sched.Stop()
+
+	sched.SetRaftProposer(node)
+	node.OnApply(func(entry raft.LogEntry) {
+		sched.ApplyEntry(entry)
+	})
+
+	server := &GRPCSchedulerServer{
+		S:        sched,
+		IsLeader: func() bool { return node.State() == raft.Leader },
+	}
+
+	const nGoroutines = 8
+	errCh := make(chan error, nGoroutines)
+	respCh := make(chan *pb.SubmitTaskResponse, nGoroutines)
+
+	for i := 0; i < nGoroutines; i++ {
+		go func(idx int) {
+			resp, err := server.SubmitTask(context.Background(), &pb.SubmitTaskRequest{
+				TaskId:         "task-concurrent",
+				Payload:        "echo idempotent-work",
+				IdempotencyKey: "key-concurrent-100",
+			})
+			if err != nil {
+				errCh <- err
+			} else {
+				respCh <- resp
+			}
+		}(i)
+	}
+
+	for i := 0; i < nGoroutines; i++ {
+		select {
+		case err := <-errCh:
+			t.Fatalf("concurrent idempotent submission failed: %v", err)
+		case resp := <-respCh:
+			if !resp.Ok {
+				t.Fatalf("concurrent submission returned ok=false")
+			}
+			if resp.TaskId != "task-concurrent" {
+				t.Fatalf("unexpected task ID: got %s, want task-concurrent", resp.TaskId)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out waiting for concurrent submissions")
+		}
+	}
 }
