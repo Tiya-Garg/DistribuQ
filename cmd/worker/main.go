@@ -24,6 +24,7 @@ func main() {
 	id := flag.String("id", "", "unique ID for this worker")
 	addr := flag.String("addr", ":9000", "address to listen on for RPC")
 	schedulerFlag := flag.String("scheduler", "localhost:8000", "scheduler address, or a comma-separated list of every scheduler replica so the worker survives a leader change")
+	heartbeatInterval := flag.Duration("heartbeat-interval", 1*time.Second, "interval between heartbeat reports to schedulers")
 	timeout := flag.Duration("timeout", worker.DefaultExecTimeout, "max duration a single task's command may run before being killed")
 	tagsFlag := flag.String("tags", "", "comma-separated capability tags (e.g. gpu,highmem)")
 	maxConcurrent := flag.Int("max-concurrent", 0, "max concurrent task executions (0 = uncapped)")
@@ -99,7 +100,7 @@ func main() {
 	log.Printf("[%s] worker listening on %s (tags=%v, max-concurrent=%d), reporting to scheduler(s) %v", *id, *addr, tags, *maxConcurrent, schedulerAddrs)
 
 	stopCh := make(chan struct{})
-	go w.StartHeartbeatLoop(1*time.Second, stopCh)
+	go w.StartHeartbeatLoop(*heartbeatInterval, stopCh)
 
 	// Intercept SIGINT/SIGTERM for graceful drain
 	sigCh := make(chan os.Signal, 1)
