@@ -563,6 +563,21 @@ func (s *Scheduler) SubmitTaskIdempotent(id, payload string, priority int, requi
 	return task, nil
 }
 
+// TaskByIdempotencyKey looks up a task associated with the given idempotency key.
+func (s *Scheduler) TaskByIdempotencyKey(key string) (*Task, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if key == "" {
+		return nil, false
+	}
+	taskID, found := s.idempotencyKeys[key]
+	if !found {
+		return nil, false
+	}
+	task, exists := s.tasks[taskID]
+	return task, exists
+}
+
 // CancelTask cancels a queued, scheduled, or in-flight task.
 func (s *Scheduler) CancelTask(id string) error {
 	s.mu.Lock()
