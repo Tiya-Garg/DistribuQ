@@ -97,7 +97,11 @@ func main() {
 		}
 		fmt.Printf("dlq tasks (%d):\n", len(dlqReply.Tasks))
 		for _, t := range dlqReply.Tasks {
-			fmt.Printf("  %-20s attempts=%d/%d priority=%d error=%q\n", t.Id, t.Attempts, t.MaxRetries, t.Priority, t.LastError)
+			if t.IdempotencyKey != "" {
+				fmt.Printf("  %-20s attempts=%d/%d priority=%d key=%q error=%q\n", t.Id, t.Attempts, t.MaxRetries, t.Priority, t.IdempotencyKey, t.LastError)
+			} else {
+				fmt.Printf("  %-20s attempts=%d/%d priority=%d error=%q\n", t.Id, t.Attempts, t.MaxRetries, t.Priority, t.LastError)
+			}
 		}
 		return
 	}
