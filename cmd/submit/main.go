@@ -159,9 +159,14 @@ func main() {
 		}
 
 		lastErr = callErr
-		if st, ok := status.FromError(callErr); ok && st.Code() == codes.FailedPrecondition && strings.Contains(st.Message(), scheduler.ErrNotLeader.Error()) {
-			log.Printf("%s is not the leader, trying next", addr)
-			continue
+		if st, ok := status.FromError(callErr); ok {
+			if st.Code() == codes.AlreadyExists {
+				log.Fatalf("task rejected: %v", st.Message())
+			}
+			if st.Code() == codes.FailedPrecondition && strings.Contains(st.Message(), scheduler.ErrNotLeader.Error()) {
+				log.Printf("%s is not the leader, trying next", addr)
+				continue
+			}
 		}
 		log.Printf("operation on %s failed: %v, trying next", addr, callErr)
 	}
