@@ -28,6 +28,13 @@ jobs:
             exit 1
           fi
 
+      - name: Verify protobuf generated code is up-to-date
+        run: |
+          if [ -n "$(git status --porcelain proto/distribuq.pb.go)" ]; then
+            echo "proto/distribuq.pb.go has unstaged changes or drift"
+            exit 1
+          fi
+
       - name: Run go vet
         run: go vet ./...
 
