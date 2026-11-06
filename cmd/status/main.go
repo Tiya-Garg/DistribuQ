@@ -17,6 +17,7 @@ import (
 
 func main() {
 	addr := flag.String("scheduler", "localhost:8000", "scheduler replica address to query")
+	timeout := flag.Duration("timeout", 2*time.Second, "dial and query timeout duration")
 	showDLQ := flag.Bool("dlq", false, "display only Dead Letter Queue (DLQ) tasks with error reasons")
 	showCluster := flag.Bool("cluster", false, "display current Raft cluster leader and member peers")
 	addPeerID := flag.String("add-peer", "", "peer ID to dynamically add to the cluster")
@@ -47,7 +48,7 @@ func main() {
 	defer conn.Close()
 
 	client := pb.NewSchedulerServiceClient(conn)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 	defer cancel()
 
 	if *addPeerID != "" {
