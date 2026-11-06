@@ -1665,6 +1665,9 @@ func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
 
 	case raft.CmdPurgeDLQ:
 		if task, ok := s.tasks[entry.TaskID]; ok && task.Status == TaskDLQ {
+			if task.IdempotencyKey != "" {
+				delete(s.idempotencyKeys, task.IdempotencyKey)
+			}
 			delete(s.tasks, entry.TaskID)
 		}
 
