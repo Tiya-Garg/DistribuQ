@@ -39,6 +39,7 @@ func parsePriority(s string) int32 {
 
 func main() {
 	addrsFlag := flag.String("schedulers", "localhost:8000", "comma-separated scheduler replica addresses to try")
+	timeout := flag.Duration("timeout", 2*time.Second, "per-replica RPC call timeout")
 	id := flag.String("id", "", "task id (required)")
 	payload := flag.String("payload", "hello", "task payload")
 	priorityFlag := flag.String("priority", "normal", "task priority: low, normal, high, critical (or 0-3)")
@@ -111,7 +112,7 @@ func main() {
 		}
 
 		client := pb.NewSchedulerServiceClient(conn)
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 
 		var callErr error
 		if *cancelFlag {
