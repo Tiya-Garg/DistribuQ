@@ -67,3 +67,59 @@ func TestWALPersisterRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+func TestWALPersisterSnapshotCompaction(t *testing.T) {
+	dir := t.TempDir()
+	p, err := NewWALPersister(dir, "node-wal-snap")
+	if err != nil {
+		t.Fatalf("NewWALPersister: %v", err)
+	}
+	defer p.Close()
+
+	// Initial log with 5 entries
+	entries := []LogEntry{
+		{Index: 1, Term: 1, Type: CmdSubmit, TaskID: "t-1"},
+		{Index: 2, Term: 1, Type: CmdSubmit, TaskID: "t-2"},
+		{Index: 3, Term: 1, Type: CmdSubmit, TaskID: "t-3"},
+		{Index: 4, Term: 1, Type: CmdSubmit, TaskID: "t-4"},
+		{Index: 5, Term: 1, Type: CmdSubmit, TaskID: "t-5"},
+	}
+	if err := p.Save(1, "node-wal-snap", entries, 0, 0, nil); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	// Compact up to index 3
+	compactedEntries := entries[3:] // indices 4 and 5
+	snapData := []byte("compacted-up-to-3")
+	if err := p.Save(1, "node-wal-snap", compactedEntries, 3, 1, snapData); err != nil {
+		t.Fatalf("Save snapshot: %v", err)
+	}
+
+	p.Close()
+
+	pReloaded, err := NewWALPersister(dir, "node-wal-snap")
+	if err != nil {
+		t.Fatalf("reloading persister: %v", err)
+	}
+	defer pReloaded.Close()
+
+	term, votedFor, logEntries, lastIncIdx, lastIncTerm, snapBytes, err := pReloaded.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if term != 1 || votedFor != "node-wal-snap" {
+		t.Errorf("state mismatch: term=%d votedFor=%s", term, votedFor)
+	}
+	if lastIncIdx != 3 || lastIncTerm != 1 {
+		t.Errorf("expected last included (3, 1), got (%d, %d)", lastIncIdx, lastIncTerm)
+	}
+	if !bytes.Equal(snapBytes, snapData) {
+		t.Errorf("snapshot data mismatch: got %q, want %q", string(snapBytes), string(snapData))
+	}
+	if len(logEntries) != 2 {
+		t.Fatalf("expected 2 remaining entries after compaction, got %d", len(logEntries))
+	}
+	if logEntries[0].Index != 4 || logEntries[1].Index != 5 {
+		t.Errorf("unexpected remaining log entries: %+v", logEntries)
+	}
+}
