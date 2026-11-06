@@ -163,6 +163,9 @@ func main() {
 			if st.Code() == codes.AlreadyExists {
 				log.Fatalf("idempotency conflict: %s (task submission rejected)", st.Message())
 			}
+			if st.Code() == codes.InvalidArgument {
+				log.Fatalf("invalid task argument: %s", st.Message())
+			}
 			if st.Code() == codes.FailedPrecondition && strings.Contains(st.Message(), scheduler.ErrNotLeader.Error()) {
 				log.Printf("%s is not the leader, trying next", addr)
 				continue
