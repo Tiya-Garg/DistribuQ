@@ -437,6 +437,17 @@ func (s *Scheduler) SubmitTaskDAG(id, payload string, priority int, requiredTag 
 // SubmitTaskIdempotent queues a task with optional DAG dependencies and an idempotency key.
 // If a task with the same idempotency key already exists, the existing task is returned without
 // creating a duplicate. If the key exists with a different payload, ErrIdempotencyConflict is returned.
+// SubmitTaskIdempotent accepts a task submission with an optional idempotency key.
+//
+// Idempotency Policy & Guarantees:
+//  1. Deduplication: Submissions presenting an already-seen idempotencyKey with identical payload
+//     return the existing task without creating a duplicate or re-executing.
+//  2. Conflict Rejection: Submissions with an already-registered idempotencyKey but different payload
+//     are rejected with ErrIdempotencyConflict (gRPC AlreadyExists).
+//  3. Persistence & Replication: Idempotency keys are replicated via Raft and persisted into
+//     state machine snapshots, surviving leader elections and cluster restarts.
+//  4. Retention: Keys are retained for the lifetime of the task in the state machine (including DLQ),
+//     and are removed only when a dead-lettered task is purged via PurgeDLQTask.
 func (s *Scheduler) SubmitTaskIdempotent(id, payload string, priority int, requiredTag string, runAt time.Time, dependsOn []string, idempotencyKey string) (*Task, error) {
 	if id == "" {
 		return nil, ErrEmptyTaskID
