@@ -103,6 +103,18 @@ func TestIdempotencySnapshotRestore(t *testing.T) {
 	if numTasks != 1 {
 		t.Fatalf("expected exactly 1 task in restored scheduler, got %d", numTasks)
 	}
+
+	// Verify TaskByIdempotencyKey on restored scheduler
+	lookedUp, ok := s2.TaskByIdempotencyKey("snap-key-99")
+	if !ok || lookedUp == nil || lookedUp.ID != "task-snap-1" {
+		t.Fatalf("expected TaskByIdempotencyKey to return task-snap-1 on restored scheduler")
+	}
+
+	// Conflicting payload on restored scheduler must still trigger ErrIdempotencyConflict
+	_, err = s2.SubmitTaskIdempotent("task-snap-conflict", "different-payload", 0, "", time.Time{}, nil, "snap-key-99")
+	if err != ErrIdempotencyConflict {
+		t.Fatalf("expected ErrIdempotencyConflict on restored scheduler, got %v", err)
+	}
 }
 
 func TestIdempotencyGRPCService(t *testing.T) {
