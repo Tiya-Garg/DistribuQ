@@ -161,7 +161,7 @@ func main() {
 		lastErr = callErr
 		if st, ok := status.FromError(callErr); ok {
 			if st.Code() == codes.AlreadyExists {
-				log.Fatalf("task rejected: %v", st.Message())
+				log.Fatalf("idempotency conflict: %s (task submission rejected)", st.Message())
 			}
 			if st.Code() == codes.FailedPrecondition && strings.Contains(st.Message(), scheduler.ErrNotLeader.Error()) {
 				log.Printf("%s is not the leader, trying next", addr)
