@@ -189,9 +189,12 @@ func main() {
 			logPath := filepath.Join(work, id+".log")
 			batch = append(batch, logPath)
 			payload := fmt.Sprintf("echo run >> '%s' && sleep 1", logPath)
-			if err := submitWithRetry(filepath.Join(*binDir, "submit"), id, payload, allAddrs, 20*time.Second); err != nil {
+			idempotencyKey := fmt.Sprintf("chaos-key-r%d-t%d", r, i)
+			if err := submitWithRetryAndKey(filepath.Join(*binDir, "submit"), id, payload, allAddrs, idempotencyKey, 20*time.Second); err != nil {
 				die(fmt.Errorf("submit %s: %w", id, err))
 			}
+			// Submit identical duplicate to test live cluster idempotency deduplication
+			_ = submitWithRetryAndKey(filepath.Join(*binDir, "submit"), id+"-dup", payload, allAddrs, idempotencyKey, 3*time.Second)
 		}
 		logs = append(logs, batch...)
 		fmt.Printf("submitted %d tasks\n", len(batch))
@@ -257,11 +260,19 @@ func currentLeader(scheds []*proc) *proc {
 }
 
 func submitWithRetry(bin, id, payload, addrs string, within time.Duration) error {
+	return submitWithRetryAndKey(bin, id, payload, addrs, "", within)
+}
+
+func submitWithRetryAndKey(bin, id, payload, addrs, idempotencyKey string, within time.Duration) error {
 	deadline := time.Now().Add(within)
 	var out []byte
 	var err error
 	for time.Now().Before(deadline) {
-		out, err = exec.Command(bin, "-id", id, "-payload", payload, "-schedulers", addrs).CombinedOutput()
+		args := []string{"-id", id, "-payload", payload, "-schedulers", addrs}
+		if idempotencyKey != "" {
+			args = append(args, "-idempotency-key", idempotencyKey)
+		}
+		out, err = exec.Command(bin, args...).CombinedOutput()
 		if err == nil {
 			return nil
 		}
