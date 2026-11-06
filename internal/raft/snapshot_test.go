@@ -198,3 +198,36 @@ func TestSnapshotPersistedRoundTrip(t *testing.T) {
 		t.Errorf("want durable-snap, got %s", string(nRestarted.SnapshotData()))
 	}
 }
+
+func TestMultiRoundSnapshotCompaction(t *testing.T) {
+	n := NewNode("n-compact", []string{"peer-1"}, newFakeTransport())
+	n.currentTerm = 1
+	n.state = Leader
+
+	// Round 1
+	for i := 1; i <= 10; i++ {
+		n.log = append(n.log, LogEntry{Index: i, Term: 1, TaskID: "t"})
+	}
+	n.commitIndex = 10
+	if err := n.Snapshot(6, []byte("snap-round-1")); err != nil {
+		t.Fatalf("Snapshot round 1: %v", err)
+	}
+	if n.LastIncludedIndex() != 6 || len(n.Log()) != 4 {
+		t.Fatalf("round 1: expected lastIncludedIndex 6 and 4 remaining entries, got %d, %d", n.LastIncludedIndex(), len(n.Log()))
+	}
+
+	// Round 2
+	for i := 11; i <= 20; i++ {
+		n.log = append(n.log, LogEntry{Index: i, Term: 1, TaskID: "t"})
+	}
+	n.commitIndex = 20
+	if err := n.Snapshot(15, []byte("snap-round-2")); err != nil {
+		t.Fatalf("Snapshot round 2: %v", err)
+	}
+	if n.LastIncludedIndex() != 15 || len(n.Log()) != 5 {
+		t.Fatalf("round 2: expected lastIncludedIndex 15 and 5 remaining entries, got %d, %d", n.LastIncludedIndex(), len(n.Log()))
+	}
+	if string(n.SnapshotData()) != "snap-round-2" {
+		t.Fatalf("round 2: expected data 'snap-round-2', got %q", string(n.SnapshotData()))
+	}
+}
