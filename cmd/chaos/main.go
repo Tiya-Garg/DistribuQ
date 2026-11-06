@@ -108,6 +108,7 @@ func main() {
 	rounds := flag.Int("rounds", 3, "number of kill-the-leader rounds")
 	perRound := flag.Int("tasks", 10, "tasks submitted per round")
 	nWorkers := flag.Int("workers", 3, "number of workers")
+	settleDelay := flag.Duration("settle-delay", 2*time.Second, "delay before each round to allow cluster leadership and membership to settle")
 	timeout := flag.Duration("timeout", 60*time.Second, "max wait for one round's tasks")
 	seed := flag.Int64("seed", time.Now().UnixNano(), "random seed (printed so a failure can be replayed)")
 	flag.Parse()
@@ -170,7 +171,7 @@ func main() {
 		}
 		workers = append(workers, p)
 	}
-	time.Sleep(2 * time.Second) // let workers register
+	time.Sleep(*settleDelay) // let workers register and cluster settle
 
 	var logs []string
 	for r := 1; r <= *rounds; r++ {
