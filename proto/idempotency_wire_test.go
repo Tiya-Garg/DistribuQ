@@ -24,5 +24,33 @@ func TestIdempotencyKeySurvivesMarshal(t *testing.T) {
 		if !bytes.Contains(b, []byte("key-xyz")) {
 			t.Errorf("%s: idempotency_key not serialized; regenerate proto/distribuq.pb.go", name)
 		}
+
+		// Verify round-trip unmarshaling retains the exact idempotency key
+		switch typed := m.(type) {
+		case *SubmitTaskRequest:
+			out := &SubmitTaskRequest{}
+			if err := gp.Unmarshal(b, out); err != nil {
+				t.Fatalf("%s: unmarshal: %v", name, err)
+			}
+			if out.IdempotencyKey != typed.IdempotencyKey {
+				t.Errorf("%s: key mismatch on round-trip: got %q, want %q", name, out.IdempotencyKey, typed.IdempotencyKey)
+			}
+		case *LogEntry:
+			out := &LogEntry{}
+			if err := gp.Unmarshal(b, out); err != nil {
+				t.Fatalf("%s: unmarshal: %v", name, err)
+			}
+			if out.IdempotencyKey != typed.IdempotencyKey {
+				t.Errorf("%s: key mismatch on round-trip: got %q, want %q", name, out.IdempotencyKey, typed.IdempotencyKey)
+			}
+		case *TaskInfo:
+			out := &TaskInfo{}
+			if err := gp.Unmarshal(b, out); err != nil {
+				t.Fatalf("%s: unmarshal: %v", name, err)
+			}
+			if out.IdempotencyKey != typed.IdempotencyKey {
+				t.Errorf("%s: key mismatch on round-trip: got %q, want %q", name, out.IdempotencyKey, typed.IdempotencyKey)
+			}
+		}
 	}
 }
