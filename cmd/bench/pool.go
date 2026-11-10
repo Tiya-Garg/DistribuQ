@@ -19,14 +19,23 @@ type SchedulerPool struct {
 
 // NewSchedulerPool connects to all provided scheduler replicas.
 func NewSchedulerPool(addrs []string) (*SchedulerPool, error) {
+	return NewSchedulerPoolWithTLS(addrs, nil)
+}
+
+// NewSchedulerPoolWithTLS connects to all provided scheduler replicas with optional TLS dial options.
+func NewSchedulerPoolWithTLS(addrs []string, dialOpt grpc.DialOption) (*SchedulerPool, error) {
 	pool := &SchedulerPool{
 		addrs:   addrs,
 		clients: make(map[string]pb.SchedulerServiceClient),
 		conns:   make(map[string]*grpc.ClientConn),
 	}
 
+	if dialOpt == nil {
+		dialOpt = grpc.WithTransportCredentials(insecure.NewCredentials())
+	}
+
 	for _, addr := range addrs {
-		conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		conn, err := grpc.NewClient(addr, dialOpt)
 		if err != nil {
 			pool.Close()
 			return nil, fmt.Errorf("dial %s failed: %w", addr, err)
