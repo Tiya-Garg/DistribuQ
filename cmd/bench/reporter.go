@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 )
@@ -21,4 +22,14 @@ func PrintReport(w io.Writer, s Stats) {
 	fmt.Fprintf(w, "Latency P95:          %v\n", s.P95)
 	fmt.Fprintf(w, "Latency P99:          %v\n", s.P99)
 	fmt.Fprintf(w, "===================================================\n")
+}
+
+// PrintJSONReport outputs benchmark statistics in structured JSON format.
+func PrintJSONReport(w io.Writer, s Stats) error {
+	data, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(w, string(data))
+	return err
 }
