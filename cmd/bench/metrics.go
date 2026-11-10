@@ -45,3 +45,70 @@ func (m *MetricsCollector) Finish() {
 	defer m.mu.Unlock()
 	m.endTime = time.Now()
 }
+
+// Percentile calculates the given percentile (e.g. 50, 95, 99) from collected latencies.
+func (m *MetricsCollector) Percentile(p float64) time.Duration {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if len(m.latencies) == 0 {
+		return 0
+	}
+
+	sorted := make([]time.Duration, len(m.latencies))
+	copy(sorted, m.latencies)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
+
+	idx := int(float64(len(sorted)-1) * (p / 100.0))
+	return sorted[idx]
+}
+
+// Stats returns a summary snapshot of results.
+type Stats struct {
+	TotalRequests int
+	Successes     int
+	Failures      int
+	Duration      time.Duration
+	Throughput    float64
+	P50           time.Duration
+	P90           time.Duration
+	P95           time.Duration
+	P99           time.Duration
+}
+
+// ComputeStats calculates the aggregate throughput and latency percentiles.
+func (m *MetricsCollector) ComputeStats() Stats {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	dur := m.endTime.Sub(m.startTime)
+	if dur <= 0 {
+		dur = time.Millisecond
+	}
+
+	throughput := float64(m.successes) / dur.Seconds()
+
+	sorted := make([]time.Duration, len(m.latencies))
+	copy(sorted, m.latencies)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
+
+	var p50, p90, p95, p99 time.Duration
+	if n := len(sorted); n > 0 {
+		p50 = sorted[int(float64(n-1)*0.50)]
+		p90 = sorted[int(float64(n-1)*0.90)]
+		p95 = sorted[int(float64(n-1)*0.95)]
+		p99 = sorted[int(float64(n-1)*0.99)]
+	}
+
+	return Stats{
+		TotalRequests: m.successes + m.failures,
+		Successes:     m.successes,
+		Failures:      m.failures,
+		Duration:      dur,
+		Throughput:    throughput,
+		P50:           p50,
+		P90:           p90,
+		P95:           p95,
+		P99:           p99,
+	}
+}
