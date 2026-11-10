@@ -46,3 +46,20 @@ func BenchmarkSchedulerIdempotentDeduplication(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkSchedulerDAGCycleDetection(b *testing.B) {
+	s := NewScheduler(nil)
+	// Create linear dependency chain: t0 <- t1 <- t2 <- t3
+	s.SubmitTask("t0", "echo 0")
+	s.SubmitTaskDAG("t1", "echo 1", 1, "", time.Time{}, []string{"t0"})
+	s.SubmitTaskDAG("t2", "echo 2", 1, "", time.Time{}, []string{"t1"})
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		// Valid non-cyclic submission with dependencies
+		_, err := s.SubmitTaskDAG(fmt.Sprintf("dag-%d", i), "echo dag", 1, "", time.Time{}, []string{"t2"})
+		if err != nil {
+			b.Fatalf("SubmitTaskDAG failed: %v", err)
+		}
+	}
+}
