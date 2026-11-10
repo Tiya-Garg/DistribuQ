@@ -2,6 +2,7 @@ package raft
 
 import (
 	"testing"
+	"time"
 )
 
 func BenchmarkRaftProposeSingleNode(b *testing.B) {
@@ -30,6 +31,51 @@ func BenchmarkRaftProposeSingleNode(b *testing.B) {
 		}
 		if ok := <-ch; !ok {
 			b.Fatalf("entry was not committed")
+		}
+	}
+}
+
+func BenchmarkRaftReplicatedCluster(b *testing.B) {
+	ft, nodes := newCluster(nil, []string{"b1", "b2", "b3"})
+	for _, n := range nodes {
+		go n.Run()
+		defer n.Stop()
+	}
+
+	var leader *Node
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, n := range nodes {
+			if n.State() == Leader {
+				leader = n
+				break
+			}
+		}
+		if leader != nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if leader == nil {
+		b.Fatalf("no leader elected in benchmark cluster")
+	}
+
+	entry := LogEntry{
+		Type:     CmdSubmit,
+		TaskID:   "replicated-bench",
+		Payload:  "echo replicated",
+		Priority: 1,
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _, ch, err := leader.Propose(entry)
+		if err != nil {
+			b.Fatalf("Propose failed: %v", err)
+		}
+		if ok := <-ch; !ok {
+			b.Fatalf("replicated entry was not committed")
 		}
 	}
 }
