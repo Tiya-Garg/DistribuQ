@@ -39,10 +39,25 @@ func (r *Runner) Run(ctx context.Context) error {
 	payload := GeneratePayload(r.cfg.PayloadSize)
 	var submittedIDs sync.Map
 
+	// Rate limiter ticker if rate is configured
+	var rateTicker *time.Ticker
+	if r.cfg.RateLimit > 0 {
+		rateTicker = time.NewTicker(time.Second / time.Duration(r.cfg.RateLimit))
+		defer rateTicker.Stop()
+	}
+
 	for w := 0; w < r.cfg.Concurrency; w++ {
 		go func(workerID int) {
 			defer wg.Done()
 			for taskNum := range taskCh {
+				if rateTicker != nil {
+					select {
+					case <-rateTicker.C:
+					case <-ctx.Done():
+						return
+					}
+				}
+
 				select {
 				case <-ctx.Done():
 					return
