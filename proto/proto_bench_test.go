@@ -50,3 +50,26 @@ func BenchmarkProtobufSubmitTaskRequestUnmarshal(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkProtobufLogEntryMarshal(b *testing.B) {
+	entry := &LogEntry{
+		Index:          100,
+		Term:           5,
+		Type:           "submitted",
+		TaskId:         "log-entry-bench",
+		Payload:        "echo benchmark log entry",
+		Priority:       3,
+		RequiredTag:    "highmem",
+		RunAtUnixMs:    1700000000000,
+		IdempotencyKey: "log-idemp-12345",
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		data, err := proto.Marshal(entry)
+		if err != nil {
+			b.Fatalf("Marshal log entry failed: %v", err)
+		}
+		_ = data
+	}
+}
