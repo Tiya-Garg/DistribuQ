@@ -36,6 +36,7 @@ A fault-tolerant distributed task scheduler written in Go. Multiple scheduler re
 | `cmd/submit` | CLI to submit, delay, cancel, or deduplicate tasks; routes to the active leader |
 | `cmd/status` | CLI to view a replica's tasks and worker count |
 | `cmd/chaos` | End-to-end failure-injection test (random worker + leader kills under load) |
+| `cmd/bench` | Cluster benchmarking tool measuring throughput (req/sec) and p50/p90/p95/p99 latency percentiles |
 
 The `raft.Transport` interface and the scheduler's `dispatchFn` are injected, decoupled from the underlying transport. Node-to-node consensus, worker orchestration, and client interactions are powered by **gRPC and Protocol Buffers**.
 
