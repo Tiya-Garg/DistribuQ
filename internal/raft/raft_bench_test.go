@@ -99,3 +99,29 @@ func BenchmarkRaftSnapshotCompaction(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkRaftHandleHeartbeat(b *testing.B) {
+	n := NewNode("follower-bench", nil, newFakeTransport())
+	n.state = Follower
+	n.currentTerm = 2
+	n.lastIncludedIndex = 0
+
+	args := &HeartbeatArgs{
+		Term:         2,
+		LeaderID:     "leader-bench",
+		PrevLogIndex: 0,
+		PrevLogTerm:  0,
+		Entries: []LogEntry{
+			{Index: 1, Term: 2, Type: CmdSubmit, TaskID: "hb-t1"},
+		},
+		LeaderCommit: 1,
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		reply := n.HandleHeartbeat(args)
+		if !reply.Success {
+			b.Fatalf("HandleHeartbeat failed: %+v", reply)
+		}
+	}
+}
