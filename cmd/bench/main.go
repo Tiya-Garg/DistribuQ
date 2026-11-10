@@ -29,6 +29,7 @@ func main() {
 	rateLimit := flag.Int("rate", 0, "max submissions per second (0 for uncapped)")
 	payloadSize := flag.Int("payload-size", 64, "byte size of synthetic task payload")
 	timeout := flag.Duration("timeout", 30*time.Second, "overall benchmark timeout")
+	jsonOutput := flag.Bool("json", false, "output results in JSON format")
 	flag.Parse()
 
 	cfg := Config{
@@ -60,5 +61,11 @@ func main() {
 	}
 
 	stats := collector.ComputeStats()
-	PrintReport(os.Stdout, stats)
+	if *jsonOutput {
+		if err := PrintJSONReport(os.Stdout, stats); err != nil {
+			log.Fatalf("failed to print JSON report: %v", err)
+		}
+	} else {
+		PrintReport(os.Stdout, stats)
+	}
 }
