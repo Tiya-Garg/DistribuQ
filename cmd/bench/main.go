@@ -26,6 +26,7 @@ type Config struct {
 	TLSCert     string
 	TLSKey      string
 	ServerName  string
+	Verify      bool
 }
 
 func main() {
@@ -39,6 +40,7 @@ func main() {
 	tlsCert := flag.String("tls-cert", "", "path to client TLS certificate for mTLS")
 	tlsKey := flag.String("tls-key", "", "path to client TLS private key for mTLS")
 	serverName := flag.String("server-name", "localhost", "expected scheduler TLS server name (SAN)")
+	verify := flag.Bool("verify", false, "wait and verify all submitted tasks transition to completed state")
 	jsonOutput := flag.Bool("json", false, "output results in JSON format")
 	flag.Parse()
 
@@ -53,6 +55,7 @@ func main() {
 		TLSCert:     *tlsCert,
 		TLSKey:      *tlsKey,
 		ServerName:  *serverName,
+		Verify:      *verify,
 	}
 
 	fmt.Printf("DistribuQ Benchmark Harness initialized with %d tasks, concurrency %d\n", cfg.Tasks, cfg.Concurrency)
