@@ -9,6 +9,8 @@ import (
 	"log"
 	"os"
 	"time"
+
+	"github.com/Tiya-Garg/DistribuQ/internal/security"
 )
 
 // Config defines the benchmark parameters for the run.
@@ -59,7 +61,19 @@ func main() {
 	defer cancel()
 
 	addrs := ParseSchedulers(cfg.Schedulers)
-	pool, err := NewSchedulerPool(addrs)
+
+	tlsCfg := &security.TLSConfig{
+		CACertPath: cfg.CACert,
+		CertPath:   cfg.TLSCert,
+		KeyPath:    cfg.TLSKey,
+		ServerName: cfg.ServerName,
+	}
+	dialOpt, err := tlsCfg.DialOption()
+	if err != nil {
+		log.Fatalf("failed to configure TLS options: %v", err)
+	}
+
+	pool, err := NewSchedulerPoolWithTLS(addrs, dialOpt)
 	if err != nil {
 		log.Fatalf("failed to connect to schedulers: %v", err)
 	}
