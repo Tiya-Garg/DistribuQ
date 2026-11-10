@@ -36,5 +36,8 @@ fmt-check:
 chaos: build
 	go run ./cmd/chaos -bin ./$(BIN_DIR)
 
+bench: build
+	go run ./cmd/bench -tasks 500 -concurrency 8
+
 clean:
 	rm -rf $(BIN_DIR)
