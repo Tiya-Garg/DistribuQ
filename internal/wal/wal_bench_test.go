@@ -1,6 +1,7 @@
 package wal
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -87,4 +88,36 @@ func BenchmarkWALAppendParallel(b *testing.B) {
 			}
 		}
 	})
+}
+
+func BenchmarkWALAppendPayloadSizes(b *testing.B) {
+	sizes := []int{64, 256, 1024, 4096, 16384}
+	for _, size := range sizes {
+		b.Run(fmt.Sprintf("%d_bytes", size), func(b *testing.B) {
+			dir, err := os.MkdirTemp("", "bench-wal-size-")
+			if err != nil {
+				b.Fatalf("failed to create temp dir: %v", err)
+			}
+			defer os.RemoveAll(dir)
+
+			path := filepath.Join(dir, "bench-size.wal")
+			w, err := Open(path)
+			if err != nil {
+				b.Fatalf("failed to open WAL: %v", err)
+			}
+			defer w.Close()
+
+			payload := make([]byte, size)
+			for i := range payload {
+				payload[i] = byte(i % 256)
+			}
+
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				if err := w.Append(payload); err != nil {
+					b.Fatalf("Append failed: %v", err)
+				}
+			}
+		})
+	}
 }
