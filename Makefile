@@ -1,4 +1,4 @@
-.PHONY: all build test test-race vet fmt fmt-check proto proto-check chaos clean
+.PHONY: all build test test-race vet fmt fmt-check proto proto-check chaos bench clean
 
 BIN_DIR := bin
 CMDS := scheduler worker submit status chaos bench
