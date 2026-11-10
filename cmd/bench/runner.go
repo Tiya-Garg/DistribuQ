@@ -37,6 +37,7 @@ func (r *Runner) Run(ctx context.Context) error {
 	wg.Add(r.cfg.Concurrency)
 
 	payload := GeneratePayload(r.cfg.PayloadSize)
+	var submittedIDs sync.Map
 
 	for w := 0; w < r.cfg.Concurrency; w++ {
 		go func(workerID int) {
@@ -49,21 +50,61 @@ func (r *Runner) Run(ctx context.Context) error {
 				}
 
 				taskID := fmt.Sprintf("bench-%d-%d", workerID, taskNum)
-				r.submitSingle(ctx, taskID, payload)
+				if r.submitSingle(ctx, taskID, payload) {
+					submittedIDs.Store(taskID, true)
+				}
 			}
 		}(w)
 	}
 
 	wg.Wait()
 	r.collector.Finish()
+
+	if r.cfg.Verify {
+		r.verifyCompletion(ctx, &submittedIDs)
+	}
+
 	return nil
 }
 
-func (r *Runner) submitSingle(ctx context.Context, taskID, payload string) {
+func (r *Runner) verifyCompletion(ctx context.Context, submittedIDs *sync.Map) {
+	deadline := time.Now().Add(r.cfg.Timeout)
+	for time.Now().Before(deadline) {
+		_, client, err := r.pool.FindLeader(ctx)
+		if err != nil {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+
+		resp, err := client.GetStatus(ctx, &pb.GetStatusRequest{})
+		if err != nil {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+
+		allDone := true
+		submittedIDs.Range(func(key, value any) bool {
+			id := key.(string)
+			status, exists := resp.Tasks[id]
+			if !exists || (status != "completed" && status != "failed" && status != "dlq") {
+				allDone = false
+				return false
+			}
+			return true
+		})
+
+		if allDone {
+			return
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+}
+
+func (r *Runner) submitSingle(ctx context.Context, taskID, payload string) bool {
 	_, client, err := r.pool.FindLeader(ctx)
 	if err != nil {
 		r.collector.RecordFailure()
-		return
+		return false
 	}
 
 	callCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -79,7 +120,9 @@ func (r *Runner) submitSingle(ctx context.Context, taskID, payload string) {
 
 	if err != nil {
 		r.collector.RecordFailure()
+		return false
 	} else {
 		r.collector.RecordSuccess(time.Since(start))
+		return true
 	}
 }
