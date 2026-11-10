@@ -44,7 +44,7 @@ jobs:
       - name: Build binaries
         run: |
           mkdir -p bin
-          for c in scheduler worker submit status chaos; do
+          for c in scheduler worker submit status chaos bench; do
             go build -o bin/$c ./cmd/$c
           done
 
