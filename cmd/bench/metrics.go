@@ -94,10 +94,17 @@ func (m *MetricsCollector) ComputeStats() Stats {
 
 	var p50, p90, p95, p99 time.Duration
 	if n := len(sorted); n > 0 {
-		p50 = sorted[int(float64(n-1)*0.50)]
-		p90 = sorted[int(float64(n-1)*0.90)]
-		p95 = sorted[int(float64(n-1)*0.95)]
-		p99 = sorted[int(float64(n-1)*0.99)]
+		calcP := func(pct float64) time.Duration {
+			idx := int(float64(n) * (pct / 100.0))
+			if idx >= n {
+				idx = n - 1
+			}
+			return sorted[idx]
+		}
+		p50 = calcP(50)
+		p90 = calcP(90)
+		p95 = calcP(95)
+		p99 = calcP(99)
 	}
 
 	return Stats{
