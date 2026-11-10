@@ -187,6 +187,7 @@ When `-ca-cert` and `-tls-cert` are omitted, communication defaults to insecure 
 - [x] Prometheus Metrics Endpoint (`/metrics`) with task counters and live cluster gauges
 - [x] Task Dependencies & Directed Acyclic Graph (DAG) Workflows (`submit -depends-on`, topological unblocking, cycle detection)
 - [x] Task Deduplication & Idempotency Keys (`submit -idempotency-key`, duplicate detection, conflict rejection)
+- [x] Benchmarking & Performance Harness (`cmd/bench`, microbenchmarks across all core subsystems, CI validation)
 
 ## License
 
