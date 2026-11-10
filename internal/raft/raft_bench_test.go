@@ -36,7 +36,7 @@ func BenchmarkRaftProposeSingleNode(b *testing.B) {
 }
 
 func BenchmarkRaftReplicatedCluster(b *testing.B) {
-	ft, nodes := newCluster(nil, []string{"b1", "b2", "b3"})
+	_, nodes := newCluster(nil, []string{"b1", "b2", "b3"})
 	for _, n := range nodes {
 		go n.Run()
 		defer n.Stop()
