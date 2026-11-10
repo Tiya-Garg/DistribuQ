@@ -26,3 +26,27 @@ func BenchmarkProtobufSubmitTaskRequestMarshal(b *testing.B) {
 		_ = data
 	}
 }
+
+func BenchmarkProtobufSubmitTaskRequestUnmarshal(b *testing.B) {
+	req := &SubmitTaskRequest{
+		TaskId:         "task-bench-pb",
+		Payload:        "echo benchmark",
+		Priority:       2,
+		RequiredTag:    "gpu",
+		RunAtUnixMs:    1700000000000,
+		DependsOn:      []string{"dep-1", "dep-2"},
+		IdempotencyKey: "idemp-key-12345",
+	}
+	data, err := proto.Marshal(req)
+	if err != nil {
+		b.Fatalf("setup Marshal failed: %v", err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		var decoded SubmitTaskRequest
+		if err := proto.Unmarshal(data, &decoded); err != nil {
+			b.Fatalf("Unmarshal failed: %v", err)
+		}
+	}
+}
