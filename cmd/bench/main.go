@@ -3,8 +3,11 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"log"
+	"os"
 	"time"
 )
 
@@ -38,4 +41,24 @@ func main() {
 	}
 
 	fmt.Printf("DistribuQ Benchmark Harness initialized with %d tasks, concurrency %d\n", cfg.Tasks, cfg.Concurrency)
+
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.Timeout)
+	defer cancel()
+
+	addrs := ParseSchedulers(cfg.Schedulers)
+	pool, err := NewSchedulerPool(addrs)
+	if err != nil {
+		log.Fatalf("failed to connect to schedulers: %v", err)
+	}
+	defer pool.Close()
+
+	collector := NewMetricsCollector()
+	runner := NewRunner(cfg, pool, collector)
+
+	if err := runner.Run(ctx); err != nil {
+		log.Fatalf("benchmark run error: %v", err)
+	}
+
+	stats := collector.ComputeStats()
+	PrintReport(os.Stdout, stats)
 }
