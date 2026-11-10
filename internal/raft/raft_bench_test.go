@@ -79,3 +79,23 @@ func BenchmarkRaftReplicatedCluster(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkRaftSnapshotCompaction(b *testing.B) {
+	snapData := []byte("benchmark-snapshot-payload-12345")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		n := NewNode("bench-snap", nil, newFakeTransport())
+		n.state = Leader
+		n.currentTerm = 1
+		for j := 1; j <= 100; j++ {
+			n.log = append(n.log, LogEntry{Index: j, Term: 1, TaskID: "t"})
+		}
+		n.commitIndex = 100
+		b.StartTimer()
+
+		if err := n.Snapshot(75, snapData); err != nil {
+			b.Fatalf("Snapshot failed: %v", err)
+		}
+	}
+}
