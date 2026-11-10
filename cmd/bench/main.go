@@ -13,13 +13,17 @@ import (
 
 // Config defines the benchmark parameters for the run.
 type Config struct {
-	Schedulers string
-	Tasks      int
-	Workers    int
+	Schedulers  string
+	Tasks       int
+	Workers     int
 	Concurrency int
-	RateLimit  int
+	RateLimit   int
 	PayloadSize int
-	Timeout    time.Duration
+	Timeout     time.Duration
+	CACert      string
+	TLSCert     string
+	TLSKey      string
+	ServerName  string
 }
 
 func main() {
@@ -29,6 +33,10 @@ func main() {
 	rateLimit := flag.Int("rate", 0, "max submissions per second (0 for uncapped)")
 	payloadSize := flag.Int("payload-size", 64, "byte size of synthetic task payload")
 	timeout := flag.Duration("timeout", 30*time.Second, "overall benchmark timeout")
+	caCert := flag.String("ca-cert", "", "path to CA root certificate for mTLS")
+	tlsCert := flag.String("tls-cert", "", "path to client TLS certificate for mTLS")
+	tlsKey := flag.String("tls-key", "", "path to client TLS private key for mTLS")
+	serverName := flag.String("server-name", "localhost", "expected scheduler TLS server name (SAN)")
 	jsonOutput := flag.Bool("json", false, "output results in JSON format")
 	flag.Parse()
 
@@ -39,6 +47,10 @@ func main() {
 		RateLimit:   *rateLimit,
 		PayloadSize: *payloadSize,
 		Timeout:     *timeout,
+		CACert:      *caCert,
+		TLSCert:     *tlsCert,
+		TLSKey:      *tlsKey,
+		ServerName:  *serverName,
 	}
 
 	fmt.Printf("DistribuQ Benchmark Harness initialized with %d tasks, concurrency %d\n", cfg.Tasks, cfg.Concurrency)
