@@ -41,6 +41,9 @@ jobs:
       - name: Run unit and race tests
         run: go test -v -race -count=1 ./...
 
+      - name: Run benchmark compilation and short execution verification
+        run: go test -v -bench=. -benchtime=50ms -run=^$ ./...
+
       - name: Build binaries
         run: |
           mkdir -p bin
