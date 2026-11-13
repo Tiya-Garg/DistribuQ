@@ -173,6 +173,9 @@ type Scheduler struct {
 	idempotencyKeys map[string]string
 
 	workerTimeout time.Duration
+
+	// logStore manages execution stdout/stderr logs recorded per task.
+	logStore *LogStore
 }
 
 func NewScheduler(dispatchFn func(workerID, addr string, task *Task) error) *Scheduler {
@@ -184,6 +187,7 @@ func NewScheduler(dispatchFn func(workerID, addr string, task *Task) error) *Sch
 		dispatchFn:      dispatchFn,
 		kick:            make(chan struct{}, 1),
 		stopCh:          make(chan struct{}),
+		logStore:        NewLogStore(1000),
 	}
 }
 
