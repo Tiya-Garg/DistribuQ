@@ -1490,6 +1490,7 @@ type schedulerSnapshotData struct {
 	Tasks           map[string]TaskSnapshot `json:"tasks"`
 	CronJobs        map[string]*CronJob     `json:"cron_jobs,omitempty"`
 	IdempotencyKeys map[string]string       `json:"idempotency_keys,omitempty"`
+	TaskLogs        map[string][]LogChunk   `json:"task_logs,omitempty"`
 	NextSeq         uint64                  `json:"next_seq"`
 }
 
@@ -1534,10 +1535,16 @@ func (s *Scheduler) EncodeState() ([]byte, error) {
 		idempotencyKeys[k] = v
 	}
 
+	var taskLogs map[string][]LogChunk
+	if s.logStore != nil {
+		taskLogs = s.logStore.Snapshot()
+	}
+
 	return json.Marshal(schedulerSnapshotData{
 		Tasks:           tasks,
 		CronJobs:        cronJobs,
 		IdempotencyKeys: idempotencyKeys,
+		TaskLogs:        taskLogs,
 		NextSeq:         s.nextSeq,
 	})
 }
@@ -1596,6 +1603,10 @@ func (s *Scheduler) RestoreFromSnapshot(data []byte) error {
 
 	if snap.NextSeq > s.nextSeq {
 		s.nextSeq = snap.NextSeq
+	}
+
+	if s.logStore != nil && snap.TaskLogs != nil {
+		s.logStore.Restore(snap.TaskLogs)
 	}
 
 	return nil
