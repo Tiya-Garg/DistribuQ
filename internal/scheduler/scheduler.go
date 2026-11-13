@@ -1722,6 +1722,9 @@ func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
 			if task.IdempotencyKey != "" {
 				delete(s.idempotencyKeys, task.IdempotencyKey)
 			}
+			if s.logStore != nil {
+				s.logStore.Purge(entry.TaskID)
+			}
 			delete(s.tasks, entry.TaskID)
 		}
 
