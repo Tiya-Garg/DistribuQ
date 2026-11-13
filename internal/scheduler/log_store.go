@@ -74,3 +74,37 @@ func (ls *LogStore) Get(taskID string) ([]LogChunk, error) {
 	return result, nil
 }
 
+// Purge removes all stored logs for a task (used when purging from DLQ or state cleanup).
+func (ls *LogStore) Purge(taskID string) {
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+	delete(ls.logs, taskID)
+}
+
+// Snapshot serializes all log entries for persistence and replication.
+func (ls *LogStore) Snapshot() map[string][]LogChunk {
+	ls.mu.RLock()
+	defer ls.mu.RUnlock()
+
+	cp := make(map[string][]LogChunk, len(ls.logs))
+	for k, v := range ls.logs {
+		chunksCopy := make([]LogChunk, len(v))
+		copy(chunksCopy, v)
+		cp[k] = chunksCopy
+	}
+	return cp
+}
+
+// Restore restores log entries from snapshot data.
+func (ls *LogStore) Restore(data map[string][]LogChunk) {
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+
+	ls.logs = make(map[string][]LogChunk, len(data))
+	for k, v := range data {
+		chunksCopy := make([]LogChunk, len(v))
+		copy(chunksCopy, v)
+		ls.logs[k] = chunksCopy
+	}
+}
+
