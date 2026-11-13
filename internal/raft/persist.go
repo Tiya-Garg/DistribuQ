@@ -27,6 +27,7 @@ const (
 	CmdCancel     CommandType = "canceled"
 	CmdAddCron    CommandType = "add_cron"
 	CmdRemoveCron CommandType = "remove_cron"
+	CmdTaskLog    CommandType = "task_log"
 )
 
 // LogEntry is an entry in the replicated Raft log representing a task event.
@@ -46,6 +47,8 @@ type LogEntry struct {
 	CronExpr       string      `json:"cron_expr,omitempty"`
 	DependsOn      []string    `json:"depends_on,omitempty"`
 	IdempotencyKey string      `json:"idempotency_key,omitempty"`
+	LogContent     string      `json:"log_content,omitempty"`
+	IsStderr       bool        `json:"is_stderr,omitempty"`
 }
 
 // Persister durably stores the Raft state that must survive a restart:
