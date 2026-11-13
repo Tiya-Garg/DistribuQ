@@ -1757,6 +1757,11 @@ func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
 
 	case raft.CmdRemoveCron:
 		delete(s.cronJobs, entry.TaskID)
+
+	case raft.CmdTaskLog:
+		if s.logStore != nil {
+			s.logStore.Append(entry.TaskID, entry.WorkerID, entry.LogContent, entry.IsStderr)
+		}
 	}
 }
 
