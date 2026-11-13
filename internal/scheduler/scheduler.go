@@ -198,6 +198,34 @@ func (s *Scheduler) SetRaftProposer(p RaftProposer) {
 	s.proposer = p
 }
 
+// AppendTaskLog records a new output log line or chunk for the specified task.
+func (s *Scheduler) AppendTaskLog(taskID, workerID, content string, isStderr bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.logStore != nil {
+		s.logStore.Append(taskID, workerID, content, isStderr)
+	}
+}
+
+// GetTaskLogs retrieves all recorded execution log chunks for a given task.
+func (s *Scheduler) GetTaskLogs(taskID string) ([]LogChunk, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.logStore == nil {
+		return nil, ErrLogNotFound
+	}
+	return s.logStore.Get(taskID)
+}
+
+// PurgeTaskLogs purges log entries associated with a task.
+func (s *Scheduler) PurgeTaskLogs(taskID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.logStore != nil {
+		s.logStore.Purge(taskID)
+	}
+}
+
 // SetAbortFn injects an abort function to propagate task cancellations to workers.
 func (s *Scheduler) SetAbortFn(fn func(workerID, addr, taskID string) error) {
 	s.mu.Lock()
