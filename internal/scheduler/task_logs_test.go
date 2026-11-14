@@ -3,6 +3,7 @@ package scheduler
 import (
 	"testing"
 
+	"github.com/Tiya-Garg/DistribuQ/internal/metrics"
 	"github.com/Tiya-Garg/DistribuQ/internal/raft"
 )
 
