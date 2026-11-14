@@ -102,6 +102,9 @@ func main() {
 	}
 
 	sched := scheduler.NewScheduler(dispatch)
+	if *maxLogLines > 0 {
+		sched.SetLogStore(scheduler.NewLogStore(*maxLogLines))
+	}
 	sched.SetAbortFn(abort)
 	go sched.MonitorWorkers(500 * time.Millisecond)
 

@@ -198,6 +198,13 @@ func (s *Scheduler) SetRaftProposer(p RaftProposer) {
 	s.proposer = p
 }
 
+// SetLogStore overrides the default LogStore instance for task log retention.
+func (s *Scheduler) SetLogStore(ls *LogStore) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.logStore = ls
+}
+
 // AppendTaskLog records a new output log line or chunk for the specified task.
 func (s *Scheduler) AppendTaskLog(taskID, workerID, content string, isStderr bool) {
 	s.mu.Lock()
