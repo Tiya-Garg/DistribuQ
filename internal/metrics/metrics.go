@@ -15,6 +15,7 @@ type Registry struct {
 	tasksDLQ       atomic.Int64
 	tasksRetried   atomic.Int64
 	cronTriggers   atomic.Int64
+	taskLogsCount  atomic.Int64
 }
 
 // DefaultRegistry is the global metrics registry used by DistribuQ.
