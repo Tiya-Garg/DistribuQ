@@ -168,6 +168,11 @@ DistribuQ provides real-time task output and log streaming from execution worker
 - **Durable Snapshot & Raft Replication**: Persisted log storage bounded in scheduler memory and replicated across Raft cluster logs.
 - **REST API Endpoint**: Query execution output at `GET /api/tasks/{id}/logs`.
 - **CLI Commands**: View real-time or historical execution logs using `submit -logs <task-id>` and `status -logs <task-id>`.
+  ```bash
+  # Submit a task and fetch logs
+  ./bin/submit -logs <task-id>
+  ./bin/status -logs <task-id>
+  ```
 - **Dashboard Modal**: Interactive log viewer modal embedded directly in the live web UI table.
 
 ## Roadmap
