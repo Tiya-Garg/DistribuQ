@@ -161,6 +161,15 @@ All binaries accept the following TLS flags:
 
 When `-ca-cert` and `-tls-cert` are omitted, communication defaults to insecure plaintext for local evaluation.
 
+## Task Output & Log Streaming
+
+DistribuQ provides real-time task output and log streaming from execution workers to the cluster state:
+- **Worker Execution Streaming**: Real-time stdout and stderr output chunk capture from executing commands.
+- **Durable Snapshot & Raft Replication**: Persisted log storage bounded in scheduler memory and replicated across Raft cluster logs.
+- **REST API Endpoint**: Query execution output at `GET /api/tasks/{id}/logs`.
+- **CLI Commands**: View real-time or historical execution logs using `submit -logs <task-id>` and `status -logs <task-id>`.
+- **Dashboard Modal**: Interactive log viewer modal embedded directly in the live web UI table.
+
 ## Roadmap
 
 - [x] Real task execution backend (shell executor with timeout)
