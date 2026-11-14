@@ -100,6 +100,23 @@ func (s *GRPCSchedulerServer) CancelTask(ctx context.Context, req *pb.CancelTask
 	return &pb.CancelTaskResponse{Ok: true}, nil
 }
 
+// TaskLogService defines the service methods for querying and reporting task output logs.
+type TaskLogService interface {
+	RecordTaskLog(taskID, workerID, content string, isStderr bool) error
+	FetchTaskLogs(taskID string) ([]LogChunk, error)
+}
+
+// RecordTaskLog records an execution log chunk directly into the scheduler state.
+func (s *GRPCSchedulerServer) RecordTaskLog(taskID, workerID, content string, isStderr bool) error {
+	s.S.AppendTaskLog(taskID, workerID, content, isStderr)
+	return nil
+}
+
+// FetchTaskLogs retrieves all execution logs recorded for a task.
+func (s *GRPCSchedulerServer) FetchTaskLogs(taskID string) ([]LogChunk, error) {
+	return s.S.GetTaskLogs(taskID)
+}
+
 func (s *GRPCSchedulerServer) CompleteTask(ctx context.Context, req *pb.CompleteTaskRequest) (*pb.CompleteTaskResponse, error) {
 	err := s.S.CompleteTaskBy(req.TaskId, req.WorkerId)
 	if err != nil {
