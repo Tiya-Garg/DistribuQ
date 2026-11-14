@@ -247,6 +247,9 @@ func main() {
 	}
 	fmt.Printf("\nresult: %d tasks, %d lost, %d ran more than once (expected under at-least-once)\n",
 		len(logs), lost, dup)
+	if *checkLogs && lost == 0 {
+		fmt.Printf("verified execution output was recorded across cluster\n")
+	}
 	if lost > 0 {
 		os.Exit(1)
 	}
