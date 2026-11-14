@@ -30,3 +30,13 @@ func BenchmarkMetricsWritePrometheus(b *testing.B) {
 		r.WritePrometheus(io.Discard, gauges)
 	}
 }
+
+func BenchmarkRegistryIncTaskLogsParallel(b *testing.B) {
+	reg := &Registry{}
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			reg.IncTaskLogs()
+		}
+	})
+}
