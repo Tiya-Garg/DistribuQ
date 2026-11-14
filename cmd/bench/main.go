@@ -58,6 +58,7 @@ func main() {
 		TLSKey:      *tlsKey,
 		ServerName:  *serverName,
 		Verify:      *verify,
+		MeasureLogs: *measureLogs,
 	}
 
 	fmt.Printf("DistribuQ Benchmark Harness initialized with %d tasks, concurrency %d\n", cfg.Tasks, cfg.Concurrency)
