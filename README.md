@@ -202,6 +202,7 @@ DistribuQ provides real-time task output and log streaming from execution worker
 - [x] Prometheus Metrics Endpoint (`/metrics`) with task counters and live cluster gauges
 - [x] Task Dependencies & Directed Acyclic Graph (DAG) Workflows (`submit -depends-on`, topological unblocking, cycle detection)
 - [x] Task Deduplication & Idempotency Keys (`submit -idempotency-key`, duplicate detection, conflict rejection)
+- [x] Task Output & Log Streaming (`submit -logs <task-id>`, gRPC streaming, snapshot persistence, live UI viewer)
 - [x] Benchmarking & Performance Harness (`cmd/bench`, microbenchmarks across all core subsystems, CI validation)
 
 ## License
