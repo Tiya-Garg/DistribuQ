@@ -48,6 +48,7 @@ func main() {
 	runAtFlag := flag.String("run-at", "", "optional execution timestamp (RFC3339 format, e.g. 2026-11-04T18:00:00Z)")
 	dependsOnFlag := flag.String("depends-on", "", "optional comma-separated list of parent task IDs that must complete first")
 	idempotencyKey := flag.String("idempotency-key", "", "optional deduplication key to prevent duplicate executions across retries")
+	showLogs := flag.Bool("logs", false, "fetch and display recorded stdout/stderr execution output for this task ID")
 	cancelFlag := flag.Bool("cancel", false, "cancel/abort a task by ID")
 	replayDLQ := flag.Bool("replay-dlq", false, "replay task from DLQ back into active queue")
 	purgeDLQ := flag.Bool("purge-dlq", false, "purge task from DLQ")
