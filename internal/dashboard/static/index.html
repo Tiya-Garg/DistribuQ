@@ -508,6 +508,26 @@
       }
     }
 
+    async function viewTaskLogs(taskID) {
+      try {
+        const res = await fetch(`/api/tasks/${taskID}/logs`);
+        if (!res.ok) {
+          alert(`No logs available for task ${taskID}`);
+          return;
+        }
+        const data = await res.json();
+        const logs = data.logs || [];
+        if (logs.length === 0) {
+          alert(`Task ${taskID} has no output logs.`);
+          return;
+        }
+        const formatted = logs.map(l => `[${l.worker_id}][${l.is_stderr ? 'stderr' : 'stdout'}] ${l.content}`).join('');
+        alert(`=== Logs for ${taskID} ===\n\n${formatted}`);
+      } catch (err) {
+        alert(`Failed to load logs: ${err.message}`);
+      }
+    }
+
     // Connect to Server-Sent Events (SSE)
     function connectSSE() {
       const sse = new EventSource('/api/events');
