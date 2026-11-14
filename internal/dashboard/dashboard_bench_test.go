@@ -40,3 +40,23 @@ func BenchmarkDashboardStatusJSONSerialization(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkDashboardTaskLogsJSON(b *testing.B) {
+	node := raft.NewNode("dash-node", []string{"dash-peer"}, &dummyTransport{})
+	sched := scheduler.NewScheduler(nil)
+	for i := 0; i < 50; i++ {
+		sched.AppendTaskLog("bench-log-task", "w1", "standard output log line content\n", false)
+	}
+
+	s := NewServer(":0", node, sched)
+	req := httptest.NewRequest(http.MethodGet, "/api/tasks/bench-log-task/logs", nil)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		w := httptest.NewRecorder()
+		s.handleTaskLogs(w, req)
+		if w.Code != http.StatusOK {
+			b.Fatalf("expected status 200, got %d", w.Code)
+		}
+	}
+}
