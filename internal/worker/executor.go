@@ -94,49 +94,5 @@ func NewShellExecutorWithStreamer(workerID string, timeout time.Duration, stream
 // from the worker's own logs without needing to reproduce it
 // manually.
 func NewShellExecutor(workerID string, timeout time.Duration) TaskExecutor {
-	if timeout <= 0 {
-		timeout = DefaultExecTimeout
-	}
-
-	return func(taskID, payload string) error {
-		payload = strings.TrimSpace(payload)
-		if payload == "" {
-			return fmt.Errorf("task %s: empty payload, nothing to execute", taskID)
-		}
-
-		log.Printf("[%s] executing task %s: %s", workerID, taskID, payload)
-
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
-
-		cmd := exec.CommandContext(ctx, "sh", "-c", payload)
-		configureProcessGroup(cmd)
-		cmd.WaitDelay = outputGrace
-		var out bytes.Buffer
-		cmd.Stdout = &out
-		cmd.Stderr = &out
-
-		runErr := cmd.Run()
-		output := strings.TrimSpace(out.String())
-		if output != "" {
-			log.Printf("[%s] task %s output: %s", workerID, taskID, output)
-		}
-
-		if ctx.Err() == context.DeadlineExceeded {
-			return fmt.Errorf("task %s: timed out after %s", taskID, timeout)
-		}
-		// The command itself succeeded but something it started in the
-		// background is still holding its output open. That is not a
-		// task failure; we just stop waiting for the leftover process.
-		if errors.Is(runErr, exec.ErrWaitDelay) && cmd.ProcessState != nil && cmd.ProcessState.Success() {
-			log.Printf("[%s] task %s: command succeeded but left a background process holding its output open; not waiting for it", workerID, taskID)
-			runErr = nil
-		}
-		if runErr != nil {
-			return fmt.Errorf("task %s: command failed: %w", taskID, runErr)
-		}
-
-		log.Printf("[%s] finished task %s", workerID, taskID)
-		return nil
-	}
+	return NewShellExecutorWithStreamer(workerID, timeout, nil)
 }
