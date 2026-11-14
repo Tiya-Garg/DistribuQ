@@ -3,9 +3,7 @@ package scheduler
 import (
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"strings"
-	"testing"
 )
 
 // LogHTTPHandler serves HTTP GET /api/tasks/{id}/logs requests.
