@@ -111,6 +111,7 @@ func main() {
 	settleDelay := flag.Duration("settle-delay", 2*time.Second, "delay before each round to allow cluster leadership and membership to settle")
 	timeout := flag.Duration("timeout", 60*time.Second, "max wait for one round's tasks")
 	seed := flag.Int64("seed", time.Now().UnixNano(), "random seed (printed so a failure can be replayed)")
+	checkLogs := flag.Bool("check-logs", true, "verify task execution output logs were recorded")
 	flag.Parse()
 
 	rng := rand.New(rand.NewSource(*seed))
