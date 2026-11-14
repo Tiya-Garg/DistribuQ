@@ -39,3 +39,4 @@ func TestHandleGetTaskLogsHTTP(t *testing.T) {
 		t.Fatalf("expected 404, got %d", w404.Code)
 	}
 }
+

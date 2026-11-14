@@ -57,3 +57,4 @@ func FetchTaskLogs(addr, taskID string, timeout time.Duration) ([]logChunkView, 
 
 	return data.Logs, nil
 }
+

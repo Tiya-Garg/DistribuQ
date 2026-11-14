@@ -27,3 +27,4 @@ func TestShellExecutorWithStreamerCapturesOutput(t *testing.T) {
 		t.Fatalf("expected isStderr to be false for successful echo")
 	}
 }
+
