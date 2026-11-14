@@ -30,6 +30,7 @@ func main() {
 	dataDir := flag.String("data-dir", "", "directory for durable Raft state (term, vote, replicated log, and snapshots); empty keeps state in memory only")
 	useWAL := flag.Bool("use-wal", true, "use append-only Write-Ahead Log (WAL) engine for durable storage instead of single JSON rewrite")
 	dispatchTimeout := flag.Duration("dispatch-timeout", 5*time.Second, "timeout for worker dispatch RPCs")
+	maxLogLines := flag.Int("max-task-logs", 1000, "maximum number of execution log lines retained per task")
 	caCert := flag.String("ca-cert", "", "path to CA root certificate for mTLS")
 	tlsCert := flag.String("tls-cert", "", "path to server/client TLS certificate for mTLS")
 	tlsKey := flag.String("tls-key", "", "path to TLS private key for mTLS")
