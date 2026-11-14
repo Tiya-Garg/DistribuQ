@@ -116,7 +116,21 @@ func main() {
 		ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 
 		var callErr error
-		if *cancelFlag {
+		if *showLogs {
+			logs, lErr := FetchTaskLogs(addr, *id, *timeout)
+			if lErr == nil {
+				log.Printf("retrieved %d log lines for task %s:", len(logs), *id)
+				for _, l := range logs {
+					stream := "stdout"
+					if l.IsStderr {
+						stream = "stderr"
+					}
+					log.Printf("[%s][%s] %s", l.WorkerID, stream, l.Content)
+				}
+				return
+			}
+			callErr = lErr
+		} else if *cancelFlag {
 			resp, cErr := client.CancelTask(ctx, &pb.CancelTaskRequest{TaskId: *id})
 			callErr = cErr
 			if callErr == nil {
