@@ -492,7 +492,7 @@
 
       const tasksTbody = document.getElementById('tasks-tbody');
       if (tasks.length === 0) {
-        tasksTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No tasks submitted</td></tr>';
+        tasksTbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">No tasks submitted</td></tr>';
       } else {
         tasksTbody.innerHTML = tasks.slice(0, 30).map(t => `
           <tr>
@@ -502,6 +502,7 @@
             <td><span class="pill pill-${t.status}">${t.status}</span></td>
             <td>${t.worker_id || '<span style="color: var(--text-muted);">-</span>'}</td>
             <td style="font-family: monospace; font-size: 12px; color: var(--text-muted);">${t.payload}</td>
+            <td><button class="btn-log" onclick="viewTaskLogs('${t.id}')" style="background: var(--card-bg); color: var(--accent); border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;">Logs</button></td>
           </tr>
         `).join('');
       }
