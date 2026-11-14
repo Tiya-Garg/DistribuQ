@@ -107,4 +107,3 @@ func (ls *LogStore) Restore(data map[string][]LogChunk) {
 		ls.logs[k] = chunksCopy
 	}
 }
-

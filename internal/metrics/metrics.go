@@ -21,14 +21,14 @@ type Registry struct {
 // DefaultRegistry is the global metrics registry used by DistribuQ.
 var DefaultRegistry = &Registry{}
 
-func (r *Registry) IncSubmitted() { r.tasksSubmitted.Add(1) }
-func (r *Registry) IncCompleted() { r.tasksCompleted.Add(1) }
-func (r *Registry) IncFailed()    { r.tasksFailed.Add(1) }
-func (r *Registry) IncCanceled()  { r.tasksCanceled.Add(1) }
-func (r *Registry) IncDLQ()       { r.tasksDLQ.Add(1) }
-func (r *Registry) IncRetried()   { r.tasksRetried.Add(1) }
-func (r *Registry) IncCron()      { r.cronTriggers.Add(1) }
-func (r *Registry) IncTaskLogs()  { r.taskLogsCount.Add(1) }
+func (r *Registry) IncSubmitted()   { r.tasksSubmitted.Add(1) }
+func (r *Registry) IncCompleted()   { r.tasksCompleted.Add(1) }
+func (r *Registry) IncFailed()      { r.tasksFailed.Add(1) }
+func (r *Registry) IncCanceled()    { r.tasksCanceled.Add(1) }
+func (r *Registry) IncDLQ()         { r.tasksDLQ.Add(1) }
+func (r *Registry) IncRetried()     { r.tasksRetried.Add(1) }
+func (r *Registry) IncCron()        { r.cronTriggers.Add(1) }
+func (r *Registry) IncTaskLogs()    { r.taskLogsCount.Add(1) }
 func (r *Registry) TaskLogs() int64 { return r.taskLogsCount.Load() }
 
 // WritePrometheus writes current metrics in standard Prometheus exposition text format.
