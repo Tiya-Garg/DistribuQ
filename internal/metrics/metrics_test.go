@@ -16,6 +16,8 @@ func TestMetricsWritePrometheus(t *testing.T) {
 	reg.IncDLQ()
 	reg.IncRetried()
 	reg.IncCron()
+	reg.IncTaskLogs()
+	reg.IncTaskLogs()
 
 	var buf bytes.Buffer
 	reg.WritePrometheus(&buf, map[string]float64{
