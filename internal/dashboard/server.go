@@ -69,6 +69,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/status", s.handleStatus)
 	mux.HandleFunc("/api/events", s.handleEvents)
 	mux.HandleFunc("/api/submit", s.handleSubmit)
+	mux.HandleFunc("/api/tasks/", s.handleTaskLogs)
 	mux.HandleFunc("/metrics", s.handleMetrics)
 
 	ln, err := net.Listen("tcp", s.httpAddr)
@@ -89,6 +90,10 @@ func (s *Server) Start() error {
 
 	go s.broadcastLoop()
 	return nil
+}
+
+func (s *Server) handleTaskLogs(w http.ResponseWriter, r *http.Request) {
+	s.sched.HandleGetTaskLogsHTTP(w, r)
 }
 
 // Stop gracefully stops the dashboard HTTP server.
