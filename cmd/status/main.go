@@ -19,6 +19,7 @@ func main() {
 	addr := flag.String("scheduler", "localhost:8000", "scheduler replica address to query")
 	timeout := flag.Duration("timeout", 2*time.Second, "dial and query timeout duration")
 	showDLQ := flag.Bool("dlq", false, "display only Dead Letter Queue (DLQ) tasks with error reasons")
+	taskLogsID := flag.String("logs", "", "display execution logs for a specific task ID")
 	showCluster := flag.Bool("cluster", false, "display current Raft cluster leader and member peers")
 	addPeerID := flag.String("add-peer", "", "peer ID to dynamically add to the cluster")
 	addPeerAddr := flag.String("add-peer-addr", "", "peer address to dynamically add to the cluster")
