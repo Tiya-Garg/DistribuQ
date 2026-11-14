@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"testing"
-	"time"
 
 	"github.com/Tiya-Garg/DistribuQ/internal/raft"
 )
