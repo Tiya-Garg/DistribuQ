@@ -4,10 +4,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/Tiya-Garg/DistribuQ/internal/security"
@@ -104,6 +108,55 @@ func main() {
 			} else {
 				fmt.Printf("  %-20s attempts=%d/%d priority=%d error=%q\n", t.Id, t.Attempts, t.MaxRetries, t.Priority, t.LastError)
 			}
+		}
+		return
+	}
+
+	if *taskLogsID != "" {
+		host := *addr
+		if strings.Contains(host, ":") {
+			parts := strings.Split(host, ":")
+			if parts[1] == "8000" {
+				host = parts[0] + ":8080"
+			}
+		}
+		url := fmt.Sprintf("http://%s/api/tasks/%s/logs", host, *taskLogsID)
+		httpClient := &http.Client{Timeout: *timeout}
+		resp, err := httpClient.Get(url)
+		if err != nil {
+			log.Fatalf("failed to query task logs: %v", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == http.StatusNotFound {
+			fmt.Printf("no logs found for task %s\n", *taskLogsID)
+			return
+		}
+		if resp.StatusCode != http.StatusOK {
+			b, _ := io.ReadAll(resp.Body)
+			log.Fatalf("query logs error (%d): %s", resp.StatusCode, string(b))
+		}
+
+		var payload struct {
+			TaskID string `json:"task_id"`
+			Logs   []struct {
+				Timestamp time.Time `json:"timestamp"`
+				WorkerID  string    `json:"worker_id"`
+				Content   string    `json:"content"`
+				IsStderr  bool      `json:"is_stderr"`
+			} `json:"logs"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			log.Fatalf("failed to decode response: %v", err)
+		}
+
+		fmt.Printf("task %s logs (%d lines):\n", payload.TaskID, len(payload.Logs))
+		for _, l := range payload.Logs {
+			tag := "stdout"
+			if l.IsStderr {
+				tag = "stderr"
+			}
+			fmt.Printf("  [%s][%s] %s\n", l.WorkerID, tag, strings.TrimRight(l.Content, "\r\n"))
 		}
 		return
 	}
