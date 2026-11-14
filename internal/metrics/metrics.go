@@ -61,6 +61,10 @@ func (r *Registry) WritePrometheus(w io.Writer, extraGauges map[string]float64) 
 	fmt.Fprintf(w, "# TYPE distribuq_cron_triggers_total counter\n")
 	fmt.Fprintf(w, "distribuq_cron_triggers_total %d\n\n", r.cronTriggers.Load())
 
+	fmt.Fprintf(w, "# HELP distribuq_task_logs_total Total number of task output log chunks recorded.\n")
+	fmt.Fprintf(w, "# TYPE distribuq_task_logs_total counter\n")
+	fmt.Fprintf(w, "distribuq_task_logs_total %d\n\n", r.taskLogsCount.Load())
+
 	for name, val := range extraGauges {
 		fmt.Fprintf(w, "# TYPE %s gauge\n", name)
 		fmt.Fprintf(w, "%s %f\n\n", name, val)
