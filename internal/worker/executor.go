@@ -24,6 +24,58 @@ const DefaultExecTimeout = 30 * time.Second
 // tests can shorten it.
 var outputGrace = 2 * time.Second
 
+// LogStreamer is a callback invoked when a chunk of task execution output is captured.
+type LogStreamer func(taskID, workerID, content string, isStderr bool)
+
+// NewShellExecutorWithStreamer creates a shell executor that reports incremental stdout/stderr output lines.
+func NewShellExecutorWithStreamer(workerID string, timeout time.Duration, streamer LogStreamer) TaskExecutor {
+	if timeout <= 0 {
+		timeout = DefaultExecTimeout
+	}
+
+	return func(taskID, payload string) error {
+		payload = strings.TrimSpace(payload)
+		if payload == "" {
+			return fmt.Errorf("task %s: empty payload, nothing to execute", taskID)
+		}
+
+		log.Printf("[%s] executing task %s: %s", workerID, taskID, payload)
+
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+
+		cmd := exec.CommandContext(ctx, "sh", "-c", payload)
+		configureProcessGroup(cmd)
+		cmd.WaitDelay = outputGrace
+		var out bytes.Buffer
+		cmd.Stdout = &out
+		cmd.Stderr = &out
+
+		runErr := cmd.Run()
+		output := strings.TrimSpace(out.String())
+		if output != "" {
+			log.Printf("[%s] task %s output: %s", workerID, taskID, output)
+			if streamer != nil {
+				streamer(taskID, workerID, output, runErr != nil)
+			}
+		}
+
+		if ctx.Err() == context.DeadlineExceeded {
+			return fmt.Errorf("task %s: timed out after %s", taskID, timeout)
+		}
+		if errors.Is(runErr, exec.ErrWaitDelay) && cmd.ProcessState != nil && cmd.ProcessState.Success() {
+			log.Printf("[%s] task %s: command succeeded but left a background process holding its output open; not waiting for it", workerID, taskID)
+			runErr = nil
+		}
+		if runErr != nil {
+			return fmt.Errorf("task %s: command failed: %w", taskID, runErr)
+		}
+
+		log.Printf("[%s] finished task %s", workerID, taskID)
+		return nil
+	}
+}
+
 // NewShellExecutor returns a TaskExecutor that runs a task's Payload
 // as a shell command (via "sh -c") and treats a non-zero exit status,
 // or exceeding timeout, as failure. This replaces the placeholder
