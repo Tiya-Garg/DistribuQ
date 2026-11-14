@@ -1783,6 +1783,7 @@ func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
 		if s.logStore != nil {
 			s.logStore.Append(entry.TaskID, entry.WorkerID, entry.LogContent, entry.IsStderr)
 		}
+		metrics.DefaultRegistry.IncTaskLogs()
 	}
 }
 
