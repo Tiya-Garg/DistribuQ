@@ -79,6 +79,10 @@ func (r *Runner) Run(ctx context.Context) error {
 		r.verifyCompletion(ctx, &submittedIDs)
 	}
 
+	if r.cfg.MeasureLogs {
+		r.measureTaskLogs(ctx, &submittedIDs)
+	}
+
 	return nil
 }
 
