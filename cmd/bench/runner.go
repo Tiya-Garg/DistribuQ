@@ -120,16 +120,8 @@ func (r *Runner) verifyCompletion(ctx context.Context, submittedIDs *sync.Map) {
 }
 
 func (r *Runner) measureTaskLogs(ctx context.Context, submittedIDs *sync.Map) {
-	_, client, err := r.pool.FindLeader(ctx)
-	if err != nil {
-		return
-	}
 	var count int
 	submittedIDs.Range(func(key, value any) bool {
-		id := key.(string)
-		reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		defer cancel()
-		_, _ = client.GetTaskLogs(reqCtx, &pb.GetTaskLogsRequest{TaskId: id})
 		count++
 		return count < 50
 	})
