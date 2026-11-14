@@ -69,6 +69,10 @@ func main() {
 		log.Fatalf("failed to configure TLS dial options: %v", err)
 	}
 
+	logStreamer := func(taskID, workerID, content string, isStderr bool) {
+		log.Printf("[%s] streaming task %s output (%d bytes)", workerID, taskID, len(content))
+	}
+
 	w := &worker.Worker{
 		ID:             *id,
 		SchedulerAddr:  schedulerAddrs[0],
@@ -77,7 +81,7 @@ func main() {
 		Tags:           tags,
 		MaxConcurrent:  *maxConcurrent,
 		DialOpt:        dialOpt,
-		Execute:        worker.NewShellExecutor(*id, *timeout),
+		Execute:        worker.NewShellExecutorWithStreamer(*id, *timeout, logStreamer),
 	}
 
 	var srvOpts []grpc.ServerOption
