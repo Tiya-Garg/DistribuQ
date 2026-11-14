@@ -214,6 +214,7 @@ func (s *Scheduler) AppendTaskLog(taskID, workerID, content string, isStderr boo
 			s.logStore.Append(taskID, workerID, content, isStderr)
 		}
 		s.mu.Unlock()
+		metrics.DefaultRegistry.IncTaskLogs()
 		return
 	}
 	s.mu.Unlock()
