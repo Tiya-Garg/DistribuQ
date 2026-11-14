@@ -37,6 +37,9 @@ func TestSchedulerAppendAndGetTaskLogs(t *testing.T) {
 	if logs[2].Content != "warning: error output\n" || !logs[2].IsStderr {
 		t.Fatalf("unexpected chunk 2: %+v", logs[2])
 	}
+	if metrics.DefaultRegistry.TaskLogs() == 0 {
+		t.Fatalf("expected TaskLogs metric to be incremented")
+	}
 }
 
 func TestSchedulerReplicatedTaskLogs(t *testing.T) {
