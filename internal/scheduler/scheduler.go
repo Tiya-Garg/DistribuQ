@@ -201,10 +201,23 @@ func (s *Scheduler) SetRaftProposer(p RaftProposer) {
 // AppendTaskLog records a new output log line or chunk for the specified task.
 func (s *Scheduler) AppendTaskLog(taskID, workerID, content string, isStderr bool) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.logStore != nil {
-		s.logStore.Append(taskID, workerID, content, isStderr)
+	proposer := s.proposer
+	if proposer == nil {
+		if s.logStore != nil {
+			s.logStore.Append(taskID, workerID, content, isStderr)
+		}
+		s.mu.Unlock()
+		return
 	}
+	s.mu.Unlock()
+
+	_, _, _, _ = proposer.Propose(raft.LogEntry{
+		Type:       raft.CmdTaskLog,
+		TaskID:     taskID,
+		WorkerID:   workerID,
+		LogContent: content,
+		IsStderr:   isStderr,
+	})
 }
 
 // GetTaskLogs retrieves all recorded execution log chunks for a given task.

@@ -70,3 +70,4 @@ func TestLogStoreSnapshotAndRestore(t *testing.T) {
 		t.Fatalf("expected ErrLogNotFound after purge, got %v", err)
 	}
 }
+
