@@ -21,6 +21,9 @@ build:
 test:
 	go test ./... -count=1
 
+test-task-logs:
+	go test ./internal/scheduler/... -run=TaskLog -count=1
+
 test-race:
 	go test ./... -race -count=1
 
