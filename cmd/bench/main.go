@@ -27,6 +27,7 @@ type Config struct {
 	TLSKey      string
 	ServerName  string
 	Verify      bool
+	MeasureLogs bool
 }
 
 func main() {
