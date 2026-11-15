@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tiya-Garg/DistribuQ/internal/autoscaler"
 	"github.com/Tiya-Garg/DistribuQ/internal/dashboard"
 	"github.com/Tiya-Garg/DistribuQ/internal/raft"
 	"github.com/Tiya-Garg/DistribuQ/internal/scheduler"
