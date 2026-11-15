@@ -355,8 +355,17 @@ func (s *Scheduler) RegisterWorkerWithOpts(id, addr string, tags []string, maxCo
 
 // DrainWorker flags a worker as draining so no new tasks are dispatched to it,
 // and if it currently holds active tasks, they are immediately requeued.
+// If workerID is empty, the first available non-draining worker is selected.
 func (s *Scheduler) DrainWorker(workerID string) error {
 	s.mu.Lock()
+	if workerID == "" {
+		for id, w := range s.workers {
+			if !w.Draining {
+				workerID = id
+				break
+			}
+		}
+	}
 	w, ok := s.workers[workerID]
 	if !ok {
 		s.mu.Unlock()
