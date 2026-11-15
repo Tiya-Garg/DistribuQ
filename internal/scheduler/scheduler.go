@@ -190,6 +190,7 @@ func NewScheduler(dispatchFn func(workerID, addr string, task *Task) error) *Sch
 		kick:            make(chan struct{}, 1),
 		stopCh:          make(chan struct{}),
 		logStore:        NewLogStore(1000),
+		lastActivityTime: time.Now(),
 	}
 }
 
