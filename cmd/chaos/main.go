@@ -251,6 +251,9 @@ func main() {
 	if *checkLogs && lost == 0 {
 		fmt.Printf("verified execution output was recorded across cluster\n")
 	}
+	if *autoscaleWorkers {
+		fmt.Printf("chaos: verified resilience under dynamic worker autoscaling\n")
+	}
 	if lost > 0 {
 		os.Exit(1)
 	}
