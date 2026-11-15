@@ -91,6 +91,7 @@ func (a *Autoscaler) Step(ctx context.Context) (Decision, error) {
 			if err := a.provisioner.DrainWorker(ctx, ""); err != nil {
 				return decision, fmt.Errorf("failed to drain worker: %w", err)
 			}
+			metrics.DefaultRegistry.IncScaleDown()
 		}
 		a.lastScaleDown = now
 	}
