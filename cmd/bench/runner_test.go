@@ -12,6 +12,7 @@ func TestRunnerMeasureLogsFlag(t *testing.T) {
 		Tasks:       10,
 		Concurrency: 2,
 		MeasureLogs: true,
+		Autoscale:   true,
 		Timeout:     5 * time.Second,
 	}
 	runner := &Runner{
