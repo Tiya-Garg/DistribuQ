@@ -11,16 +11,16 @@ import (
 
 // Autoscaler evaluates cluster queue backlog metrics and orchestrates worker scaling.
 type Autoscaler struct {
-	mu           sync.RWMutex
-	policy       Policy
-	metrics      ClusterMetricsProvider
-	provisioner  WorkerProvisioner
-	lastScaleUp  time.Time
+	mu            sync.RWMutex
+	policy        Policy
+	metrics       ClusterMetricsProvider
+	provisioner   WorkerProvisioner
+	lastScaleUp   time.Time
 	lastScaleDown time.Time
-	history      []Decision
-	maxHistory   int
-	stopCh       chan struct{}
-	stopped      bool
+	history       []Decision
+	maxHistory    int
+	stopCh        chan struct{}
+	stopped       bool
 }
 
 // NewAutoscaler creates an Autoscaler with given policy, metrics provider, and provisioner.

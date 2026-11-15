@@ -12,8 +12,8 @@ type mockMetrics struct {
 	idle    time.Duration
 }
 
-func (m *mockMetrics) QueueBacklog() int            { return m.backlog }
-func (m *mockMetrics) ActiveWorkers() int           { return m.workers }
+func (m *mockMetrics) QueueBacklog() int           { return m.backlog }
+func (m *mockMetrics) ActiveWorkers() int          { return m.workers }
 func (m *mockMetrics) IdleDuration() time.Duration { return m.idle }
 
 type mockProvisioner struct {

@@ -45,4 +45,3 @@ func TestWALPersisterCmdTaskLogPersistence(t *testing.T) {
 		t.Fatalf("unexpected entry loaded: %+v", entries[0])
 	}
 }
-

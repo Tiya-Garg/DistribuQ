@@ -31,4 +31,3 @@ func TestFetchTaskLogsSuccess(t *testing.T) {
 		t.Fatalf("unexpected logs returned: %+v", logs)
 	}
 }
-

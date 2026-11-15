@@ -23,4 +23,3 @@ func TestRunnerMeasureLogsFlag(t *testing.T) {
 	// Calling with empty pool shouldn't panic
 	runner.measureTaskLogs(context.Background(), &ids)
 }
-

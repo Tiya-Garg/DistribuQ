@@ -185,14 +185,14 @@ type Scheduler struct {
 
 func NewScheduler(dispatchFn func(workerID, addr string, task *Task) error) *Scheduler {
 	return &Scheduler{
-		tasks:           make(map[string]*Task),
-		cronJobs:        make(map[string]*CronJob),
-		idempotencyKeys: make(map[string]string),
-		workers:         make(map[string]*WorkerInfo),
-		dispatchFn:      dispatchFn,
-		kick:            make(chan struct{}, 1),
-		stopCh:          make(chan struct{}),
-		logStore:        NewLogStore(1000),
+		tasks:            make(map[string]*Task),
+		cronJobs:         make(map[string]*CronJob),
+		idempotencyKeys:  make(map[string]string),
+		workers:          make(map[string]*WorkerInfo),
+		dispatchFn:       dispatchFn,
+		kick:             make(chan struct{}, 1),
+		stopCh:           make(chan struct{}),
+		logStore:         NewLogStore(1000),
 		lastActivityTime: time.Now(),
 	}
 }
