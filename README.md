@@ -212,6 +212,7 @@ DistribuQ features an integrated worker autoscaler that monitors queue backlog d
 - [x] Task Dependencies & Directed Acyclic Graph (DAG) Workflows (`submit -depends-on`, topological unblocking, cycle detection)
 - [x] Task Deduplication & Idempotency Keys (`submit -idempotency-key`, duplicate detection, conflict rejection)
 - [x] Task Output & Log Streaming (`submit -logs <task-id>`, gRPC streaming, snapshot persistence, live UI viewer)
+- [x] Dynamic Worker Autoscaling & Scale-to-Zero (`status -autoscaler`, queue-driven scaling, process provisioner)
 - [x] Benchmarking & Performance Harness (`cmd/bench`, microbenchmarks across all core subsystems, CI validation)
 
 ## License
