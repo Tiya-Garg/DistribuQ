@@ -162,6 +162,50 @@ func main() {
 		return
 	}
 
+	if *showAutoscaler {
+		host := *addr
+		if strings.Contains(host, ":") {
+			parts := strings.Split(host, ":")
+			if parts[1] == "8000" {
+				host = parts[0] + ":8080"
+			}
+		}
+		url := fmt.Sprintf("http://%s/api/autoscaler", host)
+		httpClient := &http.Client{Timeout: *timeout}
+		resp, err := httpClient.Get(url)
+		if err != nil {
+			log.Fatalf("failed to query autoscaler: %v", err)
+		}
+		defer resp.Body.Close()
+
+		var payload struct {
+			Enabled       bool `json:"enabled"`
+			ActiveWorkers int  `json:"active_workers"`
+			QueueBacklog  int  `json:"queue_backlog"`
+			History       []struct {
+				Timestamp      time.Time `json:"timestamp"`
+				Direction      string    `json:"direction"`
+				CurrentWorkers int       `json:"current_workers"`
+				DesiredWorkers int       `json:"desired_workers"`
+				QueueBacklog   int       `json:"queue_backlog"`
+				Reason         string    `json:"reason"`
+			} `json:"history"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			log.Fatalf("failed to decode response: %v", err)
+		}
+
+		fmt.Printf("autoscaler status: enabled=%v active_workers=%d queue_backlog=%d\n", payload.Enabled, payload.ActiveWorkers, payload.QueueBacklog)
+		if len(payload.History) > 0 {
+			fmt.Printf("recent scaling decisions (%d):\n", len(payload.History))
+			for _, h := range payload.History {
+				fmt.Printf("  [%s] dir=%-5s workers=%d->%d backlog=%d reason=%s\n",
+					h.Timestamp.Format("15:04:05"), h.Direction, h.CurrentWorkers, h.DesiredWorkers, h.QueueBacklog, h.Reason)
+			}
+		}
+		return
+	}
+
 	reply, err := client.GetStatus(ctx, &pb.GetStatusRequest{})
 	if err != nil {
 		log.Fatalf("status query failed: %v", err)
