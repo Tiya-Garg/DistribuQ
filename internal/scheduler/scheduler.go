@@ -250,11 +250,48 @@ func (s *Scheduler) PurgeTaskLogs(taskID string) {
 	}
 }
 
-// SetAbortFn injects an abort function to propagate task cancellations to workers.
-func (s *Scheduler) SetAbortFn(fn func(workerID, addr, taskID string) error) {
+// QueueBacklog returns the count of tasks currently queued and waiting for worker dispatch.
+func (s *Scheduler) QueueBacklog() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.abortFn = fn
+	count := 0
+	for _, t := range s.tasks {
+		if t.Status == TaskQueued || t.Status == TaskScheduled {
+			count++
+		}
+	}
+	return count
+}
+
+// ActiveWorkers returns the count of currently registered, non-draining workers.
+func (s *Scheduler) ActiveWorkers() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	count := 0
+	for _, w := range s.workers {
+		if !w.Draining {
+			count++
+		}
+	}
+	return count
+}
+
+// IdleDuration returns the duration since the scheduler last had active or queued tasks.
+func (s *Scheduler) IdleDuration() time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	hasActivity := false
+	for _, t := range s.tasks {
+		if t.Status == TaskQueued || t.Status == TaskAssigned || t.Status == TaskRunning {
+			hasActivity = true
+			break
+		}
+	}
+	if hasActivity {
+		s.lastActivityTime = time.Now()
+		return 0
+	}
+	return time.Since(s.lastActivityTime)
 }
 
 // SetWorkerTimeout overrides the worker heartbeat expiration timeout for this scheduler instance.
