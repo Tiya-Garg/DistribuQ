@@ -24,6 +24,7 @@ func main() {
 	timeout := flag.Duration("timeout", 2*time.Second, "dial and query timeout duration")
 	showDLQ := flag.Bool("dlq", false, "display only Dead Letter Queue (DLQ) tasks with error reasons")
 	taskLogsID := flag.String("logs", "", "display execution logs for a specific task ID")
+	showAutoscaler := flag.Bool("autoscaler", false, "display worker autoscaling status and recent scaling decisions")
 	showCluster := flag.Bool("cluster", false, "display current Raft cluster leader and member peers")
 	addPeerID := flag.String("add-peer", "", "peer ID to dynamically add to the cluster")
 	addPeerAddr := flag.String("add-peer-addr", "", "peer address to dynamically add to the cluster")
