@@ -71,6 +71,14 @@ func (r *Registry) WritePrometheus(w io.Writer, extraGauges map[string]float64) 
 	fmt.Fprintf(w, "# TYPE distribuq_task_logs_total counter\n")
 	fmt.Fprintf(w, "distribuq_task_logs_total %d\n\n", r.taskLogsCount.Load())
 
+	fmt.Fprintf(w, "# HELP distribuq_scale_up_total Total number of worker autoscaler scale up operations.\n")
+	fmt.Fprintf(w, "# TYPE distribuq_scale_up_total counter\n")
+	fmt.Fprintf(w, "distribuq_scale_up_total %d\n\n", r.scaleUpCount.Load())
+
+	fmt.Fprintf(w, "# HELP distribuq_scale_down_total Total number of worker autoscaler scale down operations.\n")
+	fmt.Fprintf(w, "# TYPE distribuq_scale_down_total counter\n")
+	fmt.Fprintf(w, "distribuq_scale_down_total %d\n\n", r.scaleDownCount.Load())
+
 	for name, val := range extraGauges {
 		fmt.Fprintf(w, "# TYPE %s gauge\n", name)
 		fmt.Fprintf(w, "%s %f\n\n", name, val)
