@@ -552,6 +552,35 @@
     }
 
     connectSSE();
+
+    // Periodically poll autoscaler status
+    async function pollAutoscaler() {
+      try {
+        const res = await fetch('/api/autoscaler');
+        if (res.ok) {
+          const data = await res.json();
+          const elem = document.getElementById('metric-autoscale');
+          const sub = document.getElementById('metric-autoscale-sub');
+          if (elem && sub) {
+            if (!data.enabled) {
+              elem.textContent = 'Disabled';
+              sub.textContent = `${data.active_workers} workers (manual)`;
+            } else if (data.history && data.history.length > 0) {
+              const latest = data.history[data.history.length - 1];
+              elem.textContent = latest.direction || 'Stable';
+              sub.textContent = `Target: ${latest.desired_workers} • Backlog: ${latest.queue_backlog}`;
+            } else {
+              elem.textContent = 'Active';
+              sub.textContent = `${data.active_workers} workers active`;
+            }
+          }
+        }
+      } catch (e) {
+        // Ignore network glitch
+      }
+    }
+    setInterval(pollAutoscaler, 3000);
+    pollAutoscaler();
   </script>
 </body>
 </html>
