@@ -16,6 +16,8 @@ type Registry struct {
 	tasksRetried   atomic.Int64
 	cronTriggers   atomic.Int64
 	taskLogsCount  atomic.Int64
+	scaleUpCount   atomic.Int64
+	scaleDownCount atomic.Int64
 }
 
 // DefaultRegistry is the global metrics registry used by DistribuQ.
