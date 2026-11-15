@@ -46,6 +46,13 @@ func (a *Autoscaler) History() []Decision {
 	return res
 }
 
+func (a *Autoscaler) recordDecision(d Decision) {
+	a.history = append(a.history, d)
+	if len(a.history) > a.maxHistory {
+		a.history = a.history[len(a.history)-a.maxHistory:]
+	}
+}
+
 // Step evaluates metrics and executes scaling action if cooldowns permit.
 func (a *Autoscaler) Step(ctx context.Context) (Decision, error) {
 	a.mu.Lock()
