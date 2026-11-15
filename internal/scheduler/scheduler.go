@@ -176,6 +176,8 @@ type Scheduler struct {
 
 	// logStore manages execution stdout/stderr logs recorded per task.
 	logStore *LogStore
+
+	lastActivityTime time.Time
 }
 
 func NewScheduler(dispatchFn func(workerID, addr string, task *Task) error) *Scheduler {
