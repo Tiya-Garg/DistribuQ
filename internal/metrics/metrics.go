@@ -32,6 +32,10 @@ func (r *Registry) IncRetried()     { r.tasksRetried.Add(1) }
 func (r *Registry) IncCron()        { r.cronTriggers.Add(1) }
 func (r *Registry) IncTaskLogs()    { r.taskLogsCount.Add(1) }
 func (r *Registry) TaskLogs() int64 { return r.taskLogsCount.Load() }
+func (r *Registry) IncScaleUp()     { r.scaleUpCount.Add(1) }
+func (r *Registry) IncScaleDown()   { r.scaleDownCount.Add(1) }
+func (r *Registry) ScaleUps() int64 { return r.scaleUpCount.Load() }
+func (r *Registry) ScaleDowns() int64 { return r.scaleDownCount.Load() }
 
 // WritePrometheus writes current metrics in standard Prometheus exposition text format.
 func (r *Registry) WritePrometheus(w io.Writer, extraGauges map[string]float64) {
