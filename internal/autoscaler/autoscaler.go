@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/Tiya-Garg/DistribuQ/internal/metrics"
 )
 
 // Autoscaler evaluates cluster queue backlog metrics and orchestrates worker scaling.
