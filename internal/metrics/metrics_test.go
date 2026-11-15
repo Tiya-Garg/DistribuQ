@@ -37,6 +37,8 @@ func TestMetricsWritePrometheus(t *testing.T) {
 		"distribuq_tasks_retried_total 1",
 		"distribuq_cron_triggers_total 1",
 		"distribuq_task_logs_total 2",
+		"distribuq_scale_up_total 1",
+		"distribuq_scale_down_total 1",
 		"distribuq_workers_count 3.000000",
 		"distribuq_tasks_queued 5.000000",
 	}
