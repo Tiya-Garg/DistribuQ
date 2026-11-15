@@ -31,3 +31,17 @@ func DefaultPolicy() Policy {
 		ScaleToZeroIdle:   30 * time.Second,
 	}
 }
+
+// Validate ensures policy configuration bounds and intervals are consistent.
+func (p Policy) Validate() error {
+	if p.MinWorkers < 0 {
+		return errors.New("autoscaler: min workers cannot be negative")
+	}
+	if p.MaxWorkers < p.MinWorkers {
+		return ErrInvalidConfig
+	}
+	if p.TargetQueueLength <= 0 {
+		return errors.New("autoscaler: target queue length must be greater than zero")
+	}
+	return nil
+}
