@@ -253,6 +253,20 @@ func (s *Scheduler) PurgeTaskLogs(taskID string) {
 	}
 }
 
+// SetAutoscaler attaches an Autoscaler instance to the scheduler.
+func (s *Scheduler) SetAutoscaler(as *autoscaler.Autoscaler) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.autoscaler = as
+}
+
+// Autoscaler returns the attached Autoscaler instance if present.
+func (s *Scheduler) Autoscaler() *autoscaler.Autoscaler {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.autoscaler
+}
+
 // QueueBacklog returns the count of tasks currently queued and waiting for worker dispatch.
 func (s *Scheduler) QueueBacklog() int {
 	s.mu.Lock()
