@@ -176,6 +176,25 @@ func main() {
 		log.Printf("[%s] stepped down to FOLLOWER (leader is %q)", *id, node.LeaderID())
 	})
 
+	if *enableAutoscale {
+		policy := autoscaler.Policy{
+			MinWorkers:        *autoscaleMin,
+			MaxWorkers:        *autoscaleMax,
+			TargetQueueLength: *targetQueueLen,
+			ScaleUpCooldown:   *scaleUpCooldown,
+			ScaleDownCooldown: *scaleDownCooldown,
+			ScaleToZeroIdle:   *scaleToZeroIdle,
+		}
+		prov := autoscaler.NewProcessProvisioner(*workerBin, *addr)
+		as, err := autoscaler.NewAutoscaler(policy, sched, prov)
+		if err != nil {
+			log.Fatalf("failed to initialize autoscaler: %v", err)
+		}
+		sched.SetAutoscaler(as)
+		go as.Start(context.Background(), 2*time.Second)
+		log.Printf("[%s] worker autoscaler active (min: %d, max: %d, target queue: %d)", *id, *autoscaleMin, *autoscaleMax, *targetQueueLen)
+	}
+
 	var srvOpts []grpc.ServerOption
 	if tlsCfg.IsEnabled() {
 		srvOpt, err := tlsCfg.ServerOption()
