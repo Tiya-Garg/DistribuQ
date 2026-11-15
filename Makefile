@@ -24,6 +24,9 @@ test:
 test-task-logs:
 	go test ./internal/scheduler/... -run=TaskLog -count=1
 
+test-autoscaler:
+	go test ./internal/autoscaler/... -count=1
+
 test-race:
 	go test ./... -race -count=1
 
