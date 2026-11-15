@@ -179,6 +179,8 @@ type Scheduler struct {
 	logStore *LogStore
 
 	lastActivityTime time.Time
+
+	autoscaler *autoscaler.Autoscaler
 }
 
 func NewScheduler(dispatchFn func(workerID, addr string, task *Task) error) *Scheduler {
