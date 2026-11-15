@@ -82,6 +82,7 @@ func (a *Autoscaler) Step(ctx context.Context) (Decision, error) {
 			if err := a.provisioner.SpawnWorker(ctx, workerID); err != nil {
 				return decision, fmt.Errorf("failed to spawn worker %s: %w", workerID, err)
 			}
+			metrics.DefaultRegistry.IncScaleUp()
 		}
 		a.lastScaleUp = now
 	} else if decision.Direction == ScaleDown {
