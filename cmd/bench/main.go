@@ -28,6 +28,7 @@ type Config struct {
 	ServerName  string
 	Verify      bool
 	MeasureLogs bool
+	Autoscale   bool
 }
 
 func main() {
