@@ -44,6 +44,7 @@ func main() {
 	serverName := flag.String("server-name", "localhost", "expected scheduler TLS server name (SAN)")
 	verify := flag.Bool("verify", false, "wait and verify all submitted tasks transition to completed state")
 	measureLogs := flag.Bool("measure-logs", false, "measure task log streaming overhead and retrieval")
+	autoscale := flag.Bool("autoscale", false, "benchmark cluster under worker autoscaling")
 	jsonOutput := flag.Bool("json", false, "output results in JSON format")
 	flag.Parse()
 
