@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"testing"
-	"time"
 )
 
 func TestSchedulerClusterMetricsProvider(t *testing.T) {
