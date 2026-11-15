@@ -34,3 +34,19 @@ func NewAutoscaler(policy Policy, metrics ClusterMetricsProvider, provisioner Wo
 		stopCh:      make(chan struct{}),
 	}, nil
 }
+
+// History returns a copy of recent autoscaling decisions.
+func (a *Autoscaler) History() []Decision {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	res := make([]Decision, len(a.history))
+	copy(res, a.history)
+	return res
+}
+
+func (a *Autoscaler) recordDecision(d Decision) {
+	a.history = append(a.history, d)
+	if len(a.history) > a.maxHistory {
+		a.history = a.history[len(a.history)-a.maxHistory:]
+	}
+}
