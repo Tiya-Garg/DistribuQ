@@ -95,3 +95,30 @@ func (a *Autoscaler) Step(ctx context.Context) (Decision, error) {
 	a.recordDecision(decision)
 	return decision, nil
 }
+
+// Start begins a background autoscaling loop with the specified check interval.
+func (a *Autoscaler) Start(ctx context.Context, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-a.stopCh:
+			return
+		case <-ticker.C:
+			_, _ = a.Step(ctx)
+		}
+	}
+}
+
+// Stop terminates the background autoscaling loop.
+func (a *Autoscaler) Stop() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if !a.stopped {
+		a.stopped = true
+		close(a.stopCh)
+	}
+}
