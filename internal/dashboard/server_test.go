@@ -49,6 +49,24 @@ func TestDashboardIndex(t *testing.T) {
 	}
 }
 
+func TestDashboardAutoscalerEndpoint(t *testing.T) {
+	srv, _, _ := setupTestServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/autoscaler", nil)
+	rec := httptest.NewRecorder()
+
+	srv.handleAutoscaler(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", rec.Code)
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp["enabled"] != false {
+		t.Fatalf("expected enabled=false initially")
+	}
+}
+
 func TestDashboardStatusAPI(t *testing.T) {
 	srv, node, sched := setupTestServer(t)
 	sched.RegisterWorkerWithOpts("w1", "127.0.0.1:9001", []string{"gpu"}, 4)
