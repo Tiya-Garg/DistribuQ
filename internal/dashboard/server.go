@@ -97,6 +97,10 @@ func (s *Server) handleTaskLogs(w http.ResponseWriter, r *http.Request) {
 	s.sched.HandleGetTaskLogsHTTP(w, r)
 }
 
+func (s *Server) handleAutoscaler(w http.ResponseWriter, r *http.Request) {
+	s.sched.HandleGetAutoscalerHTTP(w, r)
+}
+
 // Stop gracefully stops the dashboard HTTP server.
 func (s *Server) Stop() {
 	close(s.stopCh)
