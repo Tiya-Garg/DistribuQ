@@ -253,6 +253,13 @@ func (s *Scheduler) PurgeTaskLogs(taskID string) {
 	}
 }
 
+// SetAbortFn injects an abort function to propagate task cancellations to workers.
+func (s *Scheduler) SetAbortFn(fn func(workerID, addr, taskID string) error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.abortFn = fn
+}
+
 // SetAutoscaler attaches an Autoscaler instance to the scheduler.
 func (s *Scheduler) SetAutoscaler(as *autoscaler.Autoscaler) {
 	s.mu.Lock()

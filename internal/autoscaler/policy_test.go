@@ -2,7 +2,6 @@ package autoscaler
 
 import (
 	"testing"
-	"time"
 )
 
 func TestPolicyValidate(t *testing.T) {

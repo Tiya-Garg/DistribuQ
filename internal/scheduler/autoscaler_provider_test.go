@@ -20,8 +20,8 @@ func TestSchedulerClusterMetricsProvider(t *testing.T) {
 		t.Fatalf("expected active workers 2, got %d", s.ActiveWorkers())
 	}
 
-	_, _ = s.SubmitTask("t1", "echo 1", 1, "", nil, "")
-	_, _ = s.SubmitTask("t2", "echo 2", 1, "", nil, "")
+	_, _ = s.SubmitTask("t1", "echo 1")
+	_, _ = s.SubmitTask("t2", "echo 2")
 	if s.QueueBacklog() < 1 && s.tasks["t1"].Status != TaskQueued && s.tasks["t1"].Status != TaskAssigned {
 		t.Fatalf("expected tasks in queue or assigned")
 	}
