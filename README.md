@@ -177,6 +177,14 @@ DistribuQ provides real-time task output and log streaming from execution worker
   ```
 - **Dashboard Modal**: Interactive log viewer modal embedded directly in the live web UI table.
 
+## Dynamic Worker Autoscaling & Scale-to-Zero
+
+DistribuQ features an integrated worker autoscaler that monitors queue backlog depth and dynamically scales workers:
+- **Queue-Driven Scaling**: Dynamically evaluates queue backlog against configurable targets (`-autoscale-target-queue`).
+- **Scale-to-Zero**: Automatically drains all worker nodes when the cluster is idle past `-autoscale-zero-idle`.
+- **Cooldown & Smoothing**: Protects against thrashing using separate scale-up and scale-down cooldown timers.
+- **CLI & Web Telemetry**: View live scaling decisions and target capacities via `status -autoscaler` or the web dashboard.
+
 ## Roadmap
 
 - [x] Real task execution backend (shell executor with timeout)
