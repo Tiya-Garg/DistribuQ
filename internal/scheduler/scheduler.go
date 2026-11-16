@@ -1099,6 +1099,11 @@ func (s *Scheduler) requeueOrFailWithCauseLocked(task *Task, cause string) {
 		task.WorkerID = ""
 		task.NextRetryAt = time.Time{}
 		metrics.DefaultRegistry.IncDLQ()
+		s.PublishWebhook(webhook.EventTaskDLQ, map[string]any{
+			"task_id":  task.ID,
+			"attempts": task.Attempts,
+			"error":    task.LastError,
+		})
 	}
 }
 
