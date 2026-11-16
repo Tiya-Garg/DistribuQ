@@ -1205,6 +1205,10 @@ func (s *Scheduler) completeTask(taskID, workerID string, checkWorker bool) erro
 		s.mu.Unlock()
 		s.sweepAsync()
 		metrics.DefaultRegistry.IncCompleted()
+		s.PublishWebhook(webhook.EventTaskCompleted, map[string]any{
+			"task_id":   taskID,
+			"worker_id": workerID,
+		})
 		return nil
 	}
 	s.mu.Unlock()
