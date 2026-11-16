@@ -46,3 +46,39 @@ func TestStatusAutoscalerJSONFormat(t *testing.T) {
 	}
 }
 
+func TestStatusWebhooksJSONFormat(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"enabled": true,
+			"subscriptions": []map[string]any{
+				{
+					"id":     "sub-1",
+					"url":    "https://hook.site/abc",
+					"events": []string{"task.completed"},
+				},
+			},
+		})
+	}))
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL)
+	if err != nil {
+		t.Fatalf("failed to query mock server: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var payload struct {
+		Enabled       bool `json:"enabled"`
+		Subscriptions []struct {
+			ID  string `json:"id"`
+			URL string `json:"url"`
+		} `json:"subscriptions"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if !payload.Enabled || len(payload.Subscriptions) != 1 {
+		t.Fatalf("unexpected webhooks payload: %+v", payload)
+	}
+}
+
