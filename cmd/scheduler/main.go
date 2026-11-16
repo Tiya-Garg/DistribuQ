@@ -40,6 +40,7 @@ func main() {
 	scaleDownCooldown := flag.Duration("autoscale-down-cooldown", 15*time.Second, "cooldown duration between scale down operations")
 	scaleToZeroIdle := flag.Duration("autoscale-zero-idle", 30*time.Second, "idle duration before scaling down to zero workers")
 	workerBin := flag.String("worker-bin", "./bin/worker", "path to worker executable for autoscaling process provisioner")
+	enableWebhooks := flag.Bool("webhooks", true, "enable webhook notification dispatcher")
 	caCert := flag.String("ca-cert", "", "path to CA root certificate for mTLS")
 	tlsCert := flag.String("tls-cert", "", "path to server/client TLS certificate for mTLS")
 	tlsKey := flag.String("tls-key", "", "path to TLS private key for mTLS")
