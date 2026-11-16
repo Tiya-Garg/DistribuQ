@@ -42,6 +42,11 @@ func NewDispatcher(store *Store, client HTTPClient) *Dispatcher {
 	}
 }
 
+// Store returns the underlying subscription store.
+func (d *Dispatcher) Store() *Store {
+	return d.store
+}
+
 // Publish enqueues a cluster event for non-blocking asynchronous delivery.
 func (d *Dispatcher) Publish(event Event) {
 	d.mu.RLock()
