@@ -162,6 +162,9 @@ func main() {
 			})
 			callErr = sErr
 			if callErr == nil {
+				if *subscribeWebhook != "" {
+					registerWebhookSubscription(addr, *subscribeWebhook, *webhookSecret, *timeout)
+				}
 				if resp.TaskId != "" && resp.TaskId != *id {
 					log.Printf("task deduplicated (idempotency key %q matched original task %s) on %s", *idempotencyKey, resp.TaskId, addr)
 				} else {
