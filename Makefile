@@ -27,6 +27,9 @@ test-task-logs:
 test-autoscaler:
 	go test ./internal/autoscaler/... -count=1
 
+test-webhook:
+	go test ./internal/webhook/... -count=1
+
 test-race:
 	go test ./... -race -count=1
 
