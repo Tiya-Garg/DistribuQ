@@ -71,6 +71,7 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/submit", s.handleSubmit)
 	mux.HandleFunc("/api/tasks/", s.handleTaskLogs)
 	mux.HandleFunc("/api/autoscaler", s.handleAutoscaler)
+	mux.HandleFunc("/api/webhooks", s.handleWebhooks)
 	mux.HandleFunc("/metrics", s.handleMetrics)
 
 	ln, err := net.Listen("tcp", s.httpAddr)
