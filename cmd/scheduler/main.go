@@ -197,6 +197,14 @@ func main() {
 		log.Printf("[%s] worker autoscaler active (min: %d, max: %d, target queue: %d)", *id, *autoscaleMin, *autoscaleMax, *targetQueueLen)
 	}
 
+	if *enableWebhooks {
+		store := webhook.NewStore()
+		dispatcher := webhook.NewDispatcher(store, nil)
+		sched.SetWebhookDispatcher(dispatcher)
+		dispatcher.Start(context.Background())
+		log.Printf("[%s] webhook event notification dispatcher active", *id)
+	}
+
 	var srvOpts []grpc.ServerOption
 	if tlsCfg.IsEnabled() {
 		srvOpt, err := tlsCfg.ServerOption()
