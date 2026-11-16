@@ -16,6 +16,7 @@ import (
 	"github.com/Tiya-Garg/DistribuQ/internal/cron"
 	"github.com/Tiya-Garg/DistribuQ/internal/metrics"
 	"github.com/Tiya-Garg/DistribuQ/internal/raft"
+	"github.com/Tiya-Garg/DistribuQ/internal/webhook"
 )
 
 // RaftProposer defines the interface needed to propose log entries to a Raft leader.
