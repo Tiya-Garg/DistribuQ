@@ -20,6 +20,8 @@ func TestMetricsWritePrometheus(t *testing.T) {
 	reg.IncTaskLogs()
 	reg.IncScaleUp()
 	reg.IncScaleDown()
+	reg.IncWebhookSuccess()
+	reg.IncWebhookFailure()
 
 	var buf bytes.Buffer
 	reg.WritePrometheus(&buf, map[string]float64{
