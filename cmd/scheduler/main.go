@@ -19,6 +19,7 @@ import (
 	"github.com/Tiya-Garg/DistribuQ/internal/raft"
 	"github.com/Tiya-Garg/DistribuQ/internal/scheduler"
 	"github.com/Tiya-Garg/DistribuQ/internal/security"
+	"github.com/Tiya-Garg/DistribuQ/internal/webhook"
 	pb "github.com/Tiya-Garg/DistribuQ/proto"
 	"google.golang.org/grpc"
 )
