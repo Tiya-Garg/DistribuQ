@@ -85,6 +85,14 @@ func (r *Registry) WritePrometheus(w io.Writer, extraGauges map[string]float64) 
 	fmt.Fprintf(w, "# TYPE distribuq_scale_down_total counter\n")
 	fmt.Fprintf(w, "distribuq_scale_down_total %d\n\n", r.scaleDownCount.Load())
 
+	fmt.Fprintf(w, "# HELP distribuq_webhook_success_total Total number of successfully delivered webhook requests.\n")
+	fmt.Fprintf(w, "# TYPE distribuq_webhook_success_total counter\n")
+	fmt.Fprintf(w, "distribuq_webhook_success_total %d\n\n", r.webhookSuccess.Load())
+
+	fmt.Fprintf(w, "# HELP distribuq_webhook_failure_total Total number of failed webhook deliveries.\n")
+	fmt.Fprintf(w, "# TYPE distribuq_webhook_failure_total counter\n")
+	fmt.Fprintf(w, "distribuq_webhook_failure_total %d\n\n", r.webhookFailure.Load())
+
 	for name, val := range extraGauges {
 		fmt.Fprintf(w, "# TYPE %s gauge\n", name)
 		fmt.Fprintf(w, "%s %f\n\n", name, val)
