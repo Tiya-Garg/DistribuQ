@@ -36,3 +36,4 @@ type WorkerProvisioner interface {
 	SpawnWorker(ctx context.Context, id string) error
 	DrainWorker(ctx context.Context, id string) error
 }
+

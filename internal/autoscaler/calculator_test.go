@@ -43,3 +43,4 @@ func TestCalculateDesiredWorkers(t *testing.T) {
 		t.Fatalf("expected scale to zero, got %+v", d4)
 	}
 }
+

@@ -45,3 +45,4 @@ func TestStatusAutoscalerJSONFormat(t *testing.T) {
 		t.Fatalf("unexpected payload: %+v", payload)
 	}
 }
+

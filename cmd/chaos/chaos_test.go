@@ -16,3 +16,4 @@ func TestChaosAutoscaleFlag(t *testing.T) {
 		t.Fatalf("expected autoscaleWorkers to be true")
 	}
 }
+
