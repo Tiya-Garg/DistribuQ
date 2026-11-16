@@ -222,6 +222,7 @@ DistribuQ includes an asynchronous event notification system:
 - [x] Task Deduplication & Idempotency Keys (`submit -idempotency-key`, duplicate detection, conflict rejection)
 - [x] Task Output & Log Streaming (`submit -logs <task-id>`, gRPC streaming, snapshot persistence, live UI viewer)
 - [x] Dynamic Worker Autoscaling & Scale-to-Zero (`status -autoscaler`, queue-driven scaling, process provisioner)
+- [x] Webhooks & Event Notification System (`submit -subscribe-webhook`, `status -webhooks`, HMAC signing, Slack payload formatting)
 - [x] Benchmarking & Performance Harness (`cmd/bench`, microbenchmarks across all core subsystems, CI validation)
 
 ## License
