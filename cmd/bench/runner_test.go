@@ -13,6 +13,7 @@ func TestRunnerMeasureLogsFlag(t *testing.T) {
 		Concurrency: 2,
 		MeasureLogs: true,
 		Autoscale:   true,
+		Webhooks:    true,
 		Timeout:     5 * time.Second,
 	}
 	runner := &Runner{
