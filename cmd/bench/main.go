@@ -46,6 +46,7 @@ func main() {
 	verify := flag.Bool("verify", false, "wait and verify all submitted tasks transition to completed state")
 	measureLogs := flag.Bool("measure-logs", false, "measure task log streaming overhead and retrieval")
 	autoscale := flag.Bool("autoscale", false, "benchmark cluster under worker autoscaling")
+	webhooks := flag.Bool("webhooks", false, "benchmark cluster with webhook event publishing enabled")
 	jsonOutput := flag.Bool("json", false, "output results in JSON format")
 	flag.Parse()
 
