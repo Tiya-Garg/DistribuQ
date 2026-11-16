@@ -102,6 +102,10 @@ func (s *Server) handleAutoscaler(w http.ResponseWriter, r *http.Request) {
 	s.sched.HandleGetAutoscalerHTTP(w, r)
 }
 
+func (s *Server) handleWebhooks(w http.ResponseWriter, r *http.Request) {
+	s.sched.HandleWebhooksHTTP(w, r)
+}
+
 // Stop gracefully stops the dashboard HTTP server.
 func (s *Server) Stop() {
 	close(s.stopCh)
