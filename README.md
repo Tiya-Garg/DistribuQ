@@ -186,6 +186,14 @@ DistribuQ features an integrated worker autoscaler that monitors queue backlog d
 - **Cooldown & Smoothing**: Protects against thrashing using separate scale-up and scale-down cooldown timers.
 - **CLI & Web Telemetry**: View live scaling decisions and target capacities via `status -autoscaler` or the web dashboard.
 
+## Webhooks & Event Notifications
+
+DistribuQ includes an asynchronous event notification system:
+- **Event Categories**: Real-time events emitted for `task.completed`, `task.failed`, `task.dlq`, and `worker.offline`.
+- **HMAC-SHA256 Signing**: Every delivery includes an `X-DistribuQ-Signature: sha256=...` header using a shared secret.
+- **Reliable Delivery**: Automatic exponential backoff retries on transmission failure.
+- **CLI & REST Subscriptions**: Register webhook targets via `submit -subscribe-webhook <url>`, `status -webhooks`, or `POST /api/webhooks`.
+
 ## Roadmap
 
 - [x] Real task execution backend (shell executor with timeout)
