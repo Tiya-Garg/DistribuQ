@@ -106,3 +106,36 @@ func (d *Dispatcher) Deliver(ctx context.Context, sub *Subscription, event Event
 	metrics.DefaultRegistry.IncWebhookFailure()
 	return fmt.Errorf("webhook delivery failed after %d attempts: %w", d.maxRetries, lastErr)
 }
+
+// Start begins processing published events in a background dispatch worker pool.
+func (d *Dispatcher) Start(ctx context.Context) {
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-d.stopCh:
+				return
+			case event := <-d.eventQueue:
+				subs := d.store.SubscriptionsForEvent(event.Type)
+				for _, sub := range subs {
+					go func(s *Subscription, e Event) {
+						delCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+						defer cancel()
+						_ = d.Deliver(delCtx, s, e)
+					}(sub, event)
+				}
+			}
+		}
+	}()
+}
+
+// Stop cleanly terminates the event dispatcher background worker.
+func (d *Dispatcher) Stop() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if !d.stopped {
+		d.stopped = true
+		close(d.stopCh)
+	}
+}
