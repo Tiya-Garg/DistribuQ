@@ -182,6 +182,8 @@ type Scheduler struct {
 	lastActivityTime time.Time
 
 	autoscaler *autoscaler.Autoscaler
+
+	webhookDispatcher *webhook.Dispatcher
 }
 
 func NewScheduler(dispatchFn func(workerID, addr string, task *Task) error) *Scheduler {
