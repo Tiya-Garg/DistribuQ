@@ -277,6 +277,37 @@ func (s *Scheduler) Autoscaler() *autoscaler.Autoscaler {
 	return s.autoscaler
 }
 
+// SetWebhookDispatcher attaches an event notification dispatcher to the scheduler.
+func (s *Scheduler) SetWebhookDispatcher(d *webhook.Dispatcher) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.webhookDispatcher = d
+}
+
+// WebhookDispatcher returns the attached webhook dispatcher if configured.
+func (s *Scheduler) WebhookDispatcher() *webhook.Dispatcher {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.webhookDispatcher
+}
+
+// PublishWebhook emits an event notification through the configured dispatcher.
+func (s *Scheduler) PublishWebhook(eventType webhook.EventType, payload map[string]any) {
+	s.mu.Lock()
+	d := s.webhookDispatcher
+	s.mu.Unlock()
+	if d == nil {
+		return
+	}
+	evtID := fmt.Sprintf("evt-%d-%s", time.Now().UnixNano(), eventType)
+	d.Publish(webhook.Event{
+		ID:        evtID,
+		Type:      eventType,
+		Timestamp: time.Now(),
+		Payload:   payload,
+	})
+}
+
 // QueueBacklog returns the count of tasks currently queued and waiting for worker dispatch.
 func (s *Scheduler) QueueBacklog() int {
 	s.mu.Lock()
