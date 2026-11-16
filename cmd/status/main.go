@@ -207,6 +207,51 @@ func main() {
 		return
 	}
 
+	if *showWebhooks {
+		host := *addr
+		if strings.Contains(host, ":") {
+			parts := strings.Split(host, ":")
+			if parts[1] == "8000" {
+				host = parts[0] + ":8080"
+			}
+		}
+		url := fmt.Sprintf("http://%s/api/webhooks", host)
+		httpClient := &http.Client{Timeout: *timeout}
+		resp, err := httpClient.Get(url)
+		if err != nil {
+			log.Fatalf("failed to query webhooks: %v", err)
+		}
+		defer resp.Body.Close()
+
+		var payload struct {
+			Enabled       bool `json:"enabled"`
+			Subscriptions []struct {
+				ID        string   `json:"id"`
+				URL       string   `json:"url"`
+				Events    []string `json:"events"`
+				CreatedAt string   `json:"created_at"`
+			} `json:"subscriptions"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			log.Fatalf("failed to decode response: %v", err)
+		}
+
+		fmt.Printf("webhook dispatcher: enabled=%v\n", payload.Enabled)
+		if len(payload.Subscriptions) == 0 {
+			fmt.Println("subscriptions: (none)")
+		} else {
+			fmt.Printf("active subscriptions (%d):\n", len(payload.Subscriptions))
+			for _, s := range payload.Subscriptions {
+				events := strings.Join(s.Events, ",")
+				if events == "" {
+					events = "all"
+				}
+				fmt.Printf("  %-16s url=%s events=[%s]\n", s.ID, s.URL, events)
+			}
+		}
+		return
+	}
+
 	reply, err := client.GetStatus(ctx, &pb.GetStatusRequest{})
 	if err != nil {
 		log.Fatalf("status query failed: %v", err)
