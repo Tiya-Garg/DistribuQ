@@ -18,6 +18,8 @@ type Registry struct {
 	taskLogsCount  atomic.Int64
 	scaleUpCount   atomic.Int64
 	scaleDownCount atomic.Int64
+	webhookSuccess atomic.Int64
+	webhookFailure atomic.Int64
 }
 
 // DefaultRegistry is the global metrics registry used by DistribuQ.
