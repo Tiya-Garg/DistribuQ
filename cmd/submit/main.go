@@ -48,6 +48,8 @@ func main() {
 	runAtFlag := flag.String("run-at", "", "optional execution timestamp (RFC3339 format, e.g. 2026-11-04T18:00:00Z)")
 	dependsOnFlag := flag.String("depends-on", "", "optional comma-separated list of parent task IDs that must complete first")
 	idempotencyKey := flag.String("idempotency-key", "", "optional deduplication key to prevent duplicate executions across retries")
+	subscribeWebhook := flag.String("subscribe-webhook", "", "optional webhook URL to subscribe for task completion notifications")
+	webhookSecret := flag.String("webhook-secret", "", "optional shared secret for HMAC-SHA256 signature verification")
 	showLogs := flag.Bool("logs", false, "fetch and display recorded stdout/stderr execution output for this task ID")
 	cancelFlag := flag.Bool("cancel", false, "cancel/abort a task by ID")
 	replayDLQ := flag.Bool("replay-dlq", false, "replay task from DLQ back into active queue")
