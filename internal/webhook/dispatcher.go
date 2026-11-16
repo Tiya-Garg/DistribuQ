@@ -55,3 +55,54 @@ func (d *Dispatcher) Publish(event Event) {
 		// Queue full, drop to avoid blocking scheduler
 	}
 }
+
+// Deliver sends a signed HTTP POST request to a subscriber with retries.
+func (d *Dispatcher) Deliver(ctx context.Context, sub *Subscription, event Event) error {
+	body, err := json.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("failed to encode event body: %w", err)
+	}
+
+	sig := SignPayload(sub.Secret, body)
+
+	var lastErr error
+	backoff := 50 * time.Millisecond
+
+	for attempt := 1; attempt <= d.maxRetries; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, sub.URL, bytes.NewReader(body))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("User-Agent", "DistribuQ-Webhook/1.0")
+		req.Header.Set("X-DistribuQ-Event", string(event.Type))
+		req.Header.Set("X-DistribuQ-Delivery", event.ID)
+		if sig != "" {
+			req.Header.Set("X-DistribuQ-Signature", "sha256="+sig)
+		}
+
+		resp, err := d.client.Do(req)
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+				metrics.DefaultRegistry.IncWebhookSuccess()
+				return nil
+			}
+			lastErr = fmt.Errorf("webhook responded with status: %d", resp.StatusCode)
+		} else {
+			lastErr = err
+		}
+
+		if attempt < d.maxRetries {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(backoff):
+				backoff *= 2
+			}
+		}
+	}
+
+	metrics.DefaultRegistry.IncWebhookFailure()
+	return fmt.Errorf("webhook delivery failed after %d attempts: %w", d.maxRetries, lastErr)
+}
