@@ -201,6 +201,7 @@ func NewScheduler(dispatchFn func(workerID, addr string, task *Task) error) *Sch
 		stopCh:           make(chan struct{}),
 		logStore:         NewLogStore(1000),
 		lastActivityTime: time.Now(),
+		tracer:           tracing.NewTracer("scheduler"),
 	}
 }
 
