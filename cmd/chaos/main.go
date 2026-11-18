@@ -113,6 +113,7 @@ func main() {
 	seed := flag.Int64("seed", time.Now().UnixNano(), "random seed (printed so a failure can be replayed)")
 	checkLogs := flag.Bool("check-logs", true, "verify task execution output logs were recorded")
 	autoscaleWorkers := flag.Bool("autoscale-workers", false, "allow worker count to be managed dynamically by autoscaler")
+	propagateTraces := flag.Bool("traces", true, "propagate distributed tracing context through submitted tasks")
 	flag.Parse()
 
 	rng := rand.New(rand.NewSource(*seed))
