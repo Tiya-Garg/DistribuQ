@@ -15,6 +15,7 @@ import (
 
 	"github.com/Tiya-Garg/DistribuQ/internal/scheduler"
 	"github.com/Tiya-Garg/DistribuQ/internal/security"
+	"github.com/Tiya-Garg/DistribuQ/internal/tracing"
 	pb "github.com/Tiya-Garg/DistribuQ/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
