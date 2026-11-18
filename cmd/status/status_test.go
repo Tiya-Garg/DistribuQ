@@ -121,4 +121,3 @@ func TestStatusTracesJSONFormat(t *testing.T) {
 		t.Fatalf("unexpected traces payload: %+v", payload)
 	}
 }
-

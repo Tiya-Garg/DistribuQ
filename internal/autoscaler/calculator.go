@@ -66,4 +66,3 @@ func CalculateDesiredWorkers(policy Policy, backlog, currentWorkers int, idleDur
 		Reason:         reason,
 	}
 }
-

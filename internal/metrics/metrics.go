@@ -25,21 +25,21 @@ type Registry struct {
 // DefaultRegistry is the global metrics registry used by DistribuQ.
 var DefaultRegistry = &Registry{}
 
-func (r *Registry) IncSubmitted()     { r.tasksSubmitted.Add(1) }
-func (r *Registry) IncCompleted()     { r.tasksCompleted.Add(1) }
-func (r *Registry) IncFailed()        { r.tasksFailed.Add(1) }
-func (r *Registry) IncCanceled()      { r.tasksCanceled.Add(1) }
-func (r *Registry) IncDLQ()           { r.tasksDLQ.Add(1) }
-func (r *Registry) IncRetried()       { r.tasksRetried.Add(1) }
-func (r *Registry) IncCron()          { r.cronTriggers.Add(1) }
-func (r *Registry) IncTaskLogs()      { r.taskLogsCount.Add(1) }
-func (r *Registry) TaskLogs() int64   { return r.taskLogsCount.Load() }
-func (r *Registry) IncScaleUp()       { r.scaleUpCount.Add(1) }
-func (r *Registry) IncScaleDown()     { r.scaleDownCount.Add(1) }
-func (r *Registry) ScaleUps() int64   { return r.scaleUpCount.Load() }
-func (r *Registry) ScaleDowns() int64 { return r.scaleDownCount.Load() }
-func (r *Registry) IncWebhookSuccess() { r.webhookSuccess.Add(1) }
-func (r *Registry) IncWebhookFailure() { r.webhookFailure.Add(1) }
+func (r *Registry) IncSubmitted()           { r.tasksSubmitted.Add(1) }
+func (r *Registry) IncCompleted()           { r.tasksCompleted.Add(1) }
+func (r *Registry) IncFailed()              { r.tasksFailed.Add(1) }
+func (r *Registry) IncCanceled()            { r.tasksCanceled.Add(1) }
+func (r *Registry) IncDLQ()                 { r.tasksDLQ.Add(1) }
+func (r *Registry) IncRetried()             { r.tasksRetried.Add(1) }
+func (r *Registry) IncCron()                { r.cronTriggers.Add(1) }
+func (r *Registry) IncTaskLogs()            { r.taskLogsCount.Add(1) }
+func (r *Registry) TaskLogs() int64         { return r.taskLogsCount.Load() }
+func (r *Registry) IncScaleUp()             { r.scaleUpCount.Add(1) }
+func (r *Registry) IncScaleDown()           { r.scaleDownCount.Add(1) }
+func (r *Registry) ScaleUps() int64         { return r.scaleUpCount.Load() }
+func (r *Registry) ScaleDowns() int64       { return r.scaleDownCount.Load() }
+func (r *Registry) IncWebhookSuccess()      { r.webhookSuccess.Add(1) }
+func (r *Registry) IncWebhookFailure()      { r.webhookFailure.Add(1) }
 func (r *Registry) WebhookSuccesses() int64 { return r.webhookSuccess.Load() }
 func (r *Registry) WebhookFailures() int64  { return r.webhookFailure.Load() }
 

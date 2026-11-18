@@ -627,6 +627,7 @@ func (s *Scheduler) SubmitTaskDAG(id, payload string, priority int, requiredTag 
 //     state machine snapshots, surviving leader elections and cluster restarts.
 //  4. Retention: Keys are retained for the lifetime of the task in the state machine (including DLQ),
 //     and are removed only when a dead-lettered task is purged via PurgeDLQTask.
+//
 // SubmitTaskIdempotent queues a task with optional DAG dependencies and an idempotency key.
 func (s *Scheduler) SubmitTaskIdempotent(id, payload string, priority int, requiredTag string, runAt time.Time, dependsOn []string, idempotencyKey string) (*Task, error) {
 	return s.SubmitTaskWithTrace(id, payload, priority, requiredTag, runAt, dependsOn, idempotencyKey, "")
@@ -759,6 +760,14 @@ func (s *Scheduler) SubmitTaskWithTrace(id, payload string, priority int, requir
 	}
 	metrics.DefaultRegistry.IncSubmitted()
 	return task, nil
+}
+
+// Task returns the Task with the given ID, if found.
+func (s *Scheduler) Task(id string) (*Task, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	t, ok := s.tasks[id]
+	return t, ok
 }
 
 // TaskByIdempotencyKey looks up a task associated with the given idempotency key.

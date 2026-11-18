@@ -25,4 +25,3 @@ func TestHandleGetAutoscalerHTTPDisabled(t *testing.T) {
 		t.Fatalf("expected enabled=false, got %v", resp["enabled"])
 	}
 }
-

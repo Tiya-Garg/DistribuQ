@@ -3,7 +3,6 @@ package tracing
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
 	"time"
 )
 

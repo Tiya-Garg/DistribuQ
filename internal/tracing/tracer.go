@@ -26,11 +26,11 @@ func SpanFromContext(ctx context.Context) *Span {
 
 // Tracer creates and manages tracing spans.
 type Tracer struct {
-	mu         sync.RWMutex
-	name       string
-	spans      []SpanSnapshot
-	maxSpans   int
-	exporter   SpanExporter
+	mu       sync.RWMutex
+	name     string
+	spans    []SpanSnapshot
+	maxSpans int
+	exporter SpanExporter
 }
 
 // SpanExporter provides an interface for external tracing sinks (e.g. OTLP, in-memory, log).

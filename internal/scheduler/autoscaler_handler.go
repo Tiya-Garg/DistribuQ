@@ -28,4 +28,3 @@ func (s *Scheduler) HandleGetAutoscalerHTTP(w http.ResponseWriter, r *http.Reque
 		"history":        history,
 	})
 }
-
