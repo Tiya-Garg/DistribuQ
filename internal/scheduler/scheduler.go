@@ -52,6 +52,7 @@ type Task struct {
 	RunAt          time.Time
 	DependsOn      []string
 	IdempotencyKey string
+	TraceParent    string
 
 	// seq is the task's submission order, used to dispatch tasks that
 	// were left queued in first-come, first-served order.
