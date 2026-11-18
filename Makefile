@@ -30,6 +30,9 @@ test-autoscaler:
 test-webhook:
 	go test ./internal/webhook/... -count=1
 
+test-tracing:
+	go test ./internal/tracing/... -count=1
+
 test-race:
 	go test ./... -race -count=1
 
