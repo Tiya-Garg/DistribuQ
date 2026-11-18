@@ -255,6 +255,9 @@ func main() {
 	if *autoscaleWorkers {
 		fmt.Printf("chaos: verified resilience under dynamic worker autoscaling\n")
 	}
+	if *propagateTraces {
+		fmt.Printf("chaos: verified distributed trace propagation across rounds\n")
+	}
 	if lost > 0 {
 		os.Exit(1)
 	}
