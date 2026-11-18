@@ -48,6 +48,7 @@ func main() {
 	measureLogs := flag.Bool("measure-logs", false, "measure task log streaming overhead and retrieval")
 	autoscale := flag.Bool("autoscale", false, "benchmark cluster under worker autoscaling")
 	webhooks := flag.Bool("webhooks", false, "benchmark cluster with webhook event publishing enabled")
+	trace := flag.Bool("trace", false, "propagate distributed trace context headers during benchmark submissions")
 	jsonOutput := flag.Bool("json", false, "output results in JSON format")
 	flag.Parse()
 
