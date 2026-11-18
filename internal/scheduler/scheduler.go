@@ -313,6 +313,20 @@ func (s *Scheduler) PublishWebhook(eventType webhook.EventType, payload map[stri
 	})
 }
 
+// Tracer returns the configured Tracer for the scheduler.
+func (s *Scheduler) Tracer() *tracing.Tracer {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.tracer
+}
+
+// SetTracer overrides the default Tracer on the scheduler.
+func (s *Scheduler) SetTracer(t *tracing.Tracer) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.tracer = t
+}
+
 // QueueBacklog returns the count of tasks currently queued and waiting for worker dispatch.
 func (s *Scheduler) QueueBacklog() int {
 	s.mu.Lock()
