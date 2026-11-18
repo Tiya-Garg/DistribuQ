@@ -107,6 +107,10 @@ func (s *Server) handleWebhooks(w http.ResponseWriter, r *http.Request) {
 	s.sched.HandleWebhooksHTTP(w, r)
 }
 
+func (s *Server) handleTraces(w http.ResponseWriter, r *http.Request) {
+	s.sched.HandleGetTracesHTTP(w, r)
+}
+
 // Stop gracefully stops the dashboard HTTP server.
 func (s *Server) Stop() {
 	close(s.stopCh)
