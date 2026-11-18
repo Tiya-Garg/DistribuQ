@@ -207,6 +207,12 @@ func main() {
 		log.Printf("[%s] webhook event notification dispatcher active", *id)
 	}
 
+	if *otlpEndpoint != "" {
+		exporter := tracing.NewOTLPJSONExporter(*otlpEndpoint, 10)
+		sched.Tracer().SetExporter(exporter)
+		log.Printf("[%s] OTLP distributed tracing exporter configured: %s", *id, *otlpEndpoint)
+	}
+
 	var srvOpts []grpc.ServerOption
 	if tlsCfg.IsEnabled() {
 		srvOpt, err := tlsCfg.ServerOption()
