@@ -232,6 +232,7 @@ DistribuQ features full end-to-end distributed tracing across the scheduling pip
 - [x] Task Output & Log Streaming (`submit -logs <task-id>`, gRPC streaming, snapshot persistence, live UI viewer)
 - [x] Dynamic Worker Autoscaling & Scale-to-Zero (`status -autoscaler`, queue-driven scaling, process provisioner)
 - [x] Webhooks & Event Notification System (`submit -subscribe-webhook`, `status -webhooks`, HMAC signing, Slack payload formatting)
+- [x] Distributed Tracing & OpenTelemetry (`submit -traceparent`, `status -traces`, W3C traceparent context, OTLP exporter)
 - [x] Benchmarking & Performance Harness (`cmd/bench`, microbenchmarks across all core subsystems, CI validation)
 
 ## License
