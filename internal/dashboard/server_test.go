@@ -85,6 +85,24 @@ func TestDashboardWebhooksEndpoint(t *testing.T) {
 	}
 }
 
+func TestDashboardTracesEndpoint(t *testing.T) {
+	srv, _, _ := setupTestServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/api/traces", nil)
+	rec := httptest.NewRecorder()
+
+	srv.handleTraces(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", rec.Code)
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if resp["enabled"] != true {
+		t.Fatalf("expected enabled=true for default scheduler tracer")
+	}
+}
+
 func TestDashboardStatusAPI(t *testing.T) {
 	srv, node, sched := setupTestServer(t)
 	sched.RegisterWorkerWithOpts("w1", "127.0.0.1:9001", []string{"gpu"}, 4)
