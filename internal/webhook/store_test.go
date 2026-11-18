@@ -45,6 +45,7 @@ func TestStoreSubscribeAndFilter(t *testing.T) {
 	if len(failedSubs) != 2 {
 		t.Fatalf("expected 2 matches for EventTaskFailed, got %d", len(failedSubs))
 	}
+	_ = sub2
 
 	// Unsubscribe
 	if err := s.Unsubscribe("sub-1"); err != nil {
