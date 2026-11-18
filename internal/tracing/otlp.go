@@ -1,9 +1,8 @@
 package tracing
 
 import (
+	"bytes"
 	"encoding/json"
-	"fmt"
-	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -64,7 +63,7 @@ func (e *OTLPJSONExporter) sendBatch(spans []SpanSnapshot) error {
 		return err
 	}
 
-	resp, err := e.client.Post(e.endpoint, "application/json", io.NopCloser(fmt.NewReader(payload)))
+	resp, err := e.client.Post(e.endpoint, "application/json", bytes.NewReader(payload))
 	if err != nil {
 		return err
 	}
