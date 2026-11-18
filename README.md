@@ -195,6 +195,14 @@ DistribuQ includes an asynchronous event notification system:
 - **Reliable Delivery**: Automatic exponential backoff retries on transmission failure.
 - **CLI & REST Subscriptions**: Register webhook targets via `submit -subscribe-webhook <url>`, `status -webhooks`, or `POST /api/webhooks`.
 
+## Distributed Tracing & OpenTelemetry (OTel)
+
+DistribuQ features full end-to-end distributed tracing across the scheduling pipeline:
+- **W3C Trace Context**: Standard `traceparent` headers propagated across gRPC metadata and replicated Raft log entries.
+- **End-to-End Correlation**: Correlate task submission, Raft majority commit, worker dispatch, and execution timing.
+- **OTLP Exporter**: Export span telemetry to OpenTelemetry Collectors, Jaeger, or Zipkin via `-otlp-endpoint`.
+- **CLI & REST Inspection**: View live distributed trace spans using `status -traces` or `GET /api/traces`.
+
 ## Roadmap
 
 - [x] Real task execution backend (shell executor with timeout)
