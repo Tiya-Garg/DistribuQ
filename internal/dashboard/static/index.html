@@ -586,6 +586,31 @@
     }
     setInterval(pollAutoscaler, 3000);
     pollAutoscaler();
+
+    // Periodically poll distributed traces
+    async function pollTraces() {
+      try {
+        const res = await fetch('/api/traces');
+        if (res.ok) {
+          const data = await res.json();
+          const elem = document.getElementById('metric-traces');
+          const sub = document.getElementById('metric-traces-sub');
+          if (elem && sub) {
+            if (!data.enabled) {
+              elem.textContent = 'Disabled';
+              sub.textContent = 'Tracer inactive';
+            } else {
+              elem.textContent = 'Active';
+              sub.textContent = `${data.count || 0} recorded spans`;
+            }
+          }
+        }
+      } catch (e) {
+        // Ignore network glitch
+      }
+    }
+    setInterval(pollTraces, 4000);
+    pollTraces();
   </script>
 </body>
 </html>
