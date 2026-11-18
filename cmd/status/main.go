@@ -253,6 +253,61 @@ func main() {
 		return
 	}
 
+	if *showTraces {
+		host := *addr
+		if strings.Contains(host, ":") {
+			parts := strings.Split(host, ":")
+			if parts[1] == "8000" {
+				host = parts[0] + ":8080"
+			}
+		}
+		url := fmt.Sprintf("http://%s/api/traces", host)
+		httpClient := &http.Client{Timeout: *timeout}
+		resp, err := httpClient.Get(url)
+		if err != nil {
+			log.Fatalf("failed to query traces: %v", err)
+		}
+		defer resp.Body.Close()
+
+		var payload struct {
+			Enabled bool `json:"enabled"`
+			Count   int  `json:"count"`
+			Spans   []struct {
+				Name       string  `json:"name"`
+				Kind       string  `json:"kind"`
+				TraceID    string  `json:"trace_id"`
+				SpanID     string  `json:"span_id"`
+				DurationMs float64 `json:"duration_ms"`
+				Status     struct {
+					Code string `json:"code"`
+				} `json:"status"`
+			} `json:"spans"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			log.Fatalf("failed to decode response: %v", err)
+		}
+
+		fmt.Printf("distributed tracing: enabled=%v\n", payload.Enabled)
+		if len(payload.Spans) == 0 {
+			fmt.Println("spans: (none)")
+		} else {
+			fmt.Printf("completed spans (%d):\n", len(payload.Spans))
+			for _, s := range payload.Spans {
+				tid := s.TraceID
+				if len(tid) > 8 {
+					tid = tid[:8] + "..."
+				}
+				sid := s.SpanID
+				if len(sid) > 8 {
+					sid = sid[:8]
+				}
+				fmt.Printf("  [%s][%s] trace=%s span=%s dur=%.2fms status=%s\n",
+					s.Kind, s.Name, tid, sid, s.DurationMs, s.Status.Code)
+			}
+		}
+		return
+	}
+
 	reply, err := client.GetStatus(ctx, &pb.GetStatusRequest{})
 	if err != nil {
 		log.Fatalf("status query failed: %v", err)
