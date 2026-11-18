@@ -30,6 +30,7 @@ type Config struct {
 	MeasureLogs bool
 	Autoscale   bool
 	Webhooks    bool
+	Trace       bool
 }
 
 func main() {
