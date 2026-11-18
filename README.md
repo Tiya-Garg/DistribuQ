@@ -30,6 +30,7 @@ A fault-tolerant distributed task scheduler written in Go. Multiple scheduler re
 | `internal/wal` | High-performance write-ahead log with CRC32 checksums for durable persistence |
 | `internal/autoscaler` | Dynamic worker autoscaler with queue-depth driven scaling and scale-to-zero |
 | `internal/webhook` | Webhook event notification dispatcher with HMAC-SHA256 signing and backoff retries |
+| `internal/tracing` | W3C distributed tracing context propagation and OTLP span exporter |
 | `internal/security` | Mutual TLS (mTLS 1.3) certificate loading and transport credentials |
 | `internal/metrics` | Prometheus metrics registry and HTTP export handler (`/metrics`) |
 | `internal/dashboard` | Live cluster dashboard and real-time Server-Sent Events (SSE) monitor |
