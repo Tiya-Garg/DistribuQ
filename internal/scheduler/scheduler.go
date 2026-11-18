@@ -1824,6 +1824,7 @@ func (s *Scheduler) ApplyEntry(entry raft.LogEntry) {
 				RunAt:          runAt,
 				DependsOn:      entry.DependsOn,
 				IdempotencyKey: entry.IdempotencyKey,
+				TraceParent:    entry.TraceParent,
 				MaxRetries:     3,
 				seq:            s.nextSeq,
 			}
