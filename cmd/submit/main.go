@@ -50,6 +50,7 @@ func main() {
 	idempotencyKey := flag.String("idempotency-key", "", "optional deduplication key to prevent duplicate executions across retries")
 	subscribeWebhook := flag.String("subscribe-webhook", "", "optional webhook URL to subscribe for task completion notifications")
 	webhookSecret := flag.String("webhook-secret", "", "optional shared secret for HMAC-SHA256 signature verification")
+	traceparentFlag := flag.String("traceparent", "", "optional W3C traceparent header to propagate distributed tracing context (e.g. 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01)")
 	showLogs := flag.Bool("logs", false, "fetch and display recorded stdout/stderr execution output for this task ID")
 	cancelFlag := flag.Bool("cancel", false, "cancel/abort a task by ID")
 	replayDLQ := flag.Bool("replay-dlq", false, "replay task from DLQ back into active queue")
