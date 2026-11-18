@@ -26,6 +26,7 @@ func main() {
 	taskLogsID := flag.String("logs", "", "display execution logs for a specific task ID")
 	showAutoscaler := flag.Bool("autoscaler", false, "display worker autoscaling status and recent scaling decisions")
 	showWebhooks := flag.Bool("webhooks", false, "display active webhook subscriptions")
+	showTraces := flag.Bool("traces", false, "display recent distributed tracing spans")
 	showCluster := flag.Bool("cluster", false, "display current Raft cluster leader and member peers")
 	addPeerID := flag.String("add-peer", "", "peer ID to dynamically add to the cluster")
 	addPeerAddr := flag.String("add-peer-addr", "", "peer address to dynamically add to the cluster")
