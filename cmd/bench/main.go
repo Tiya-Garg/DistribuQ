@@ -67,6 +67,7 @@ func main() {
 		MeasureLogs: *measureLogs,
 		Autoscale:   *autoscale,
 		Webhooks:    *webhooks,
+		Trace:       *trace,
 	}
 
 	fmt.Printf("DistribuQ Benchmark Harness initialized with %d tasks, concurrency %d\n", cfg.Tasks, cfg.Concurrency)
