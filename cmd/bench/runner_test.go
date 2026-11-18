@@ -14,6 +14,7 @@ func TestRunnerMeasureLogsFlag(t *testing.T) {
 		MeasureLogs: true,
 		Autoscale:   true,
 		Webhooks:    true,
+		Trace:       true,
 		Timeout:     5 * time.Second,
 	}
 	runner := &Runner{
