@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/Tiya-Garg/DistribuQ/internal/tracing"
 	pb "github.com/Tiya-Garg/DistribuQ/proto"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -71,7 +72,13 @@ func (s *GRPCSchedulerServer) SubmitTask(ctx context.Context, req *pb.SubmitTask
 	if req.RunAtUnixMs > 0 {
 		runAt = time.UnixMilli(req.RunAtUnixMs)
 	}
-	task, err := s.S.SubmitTaskIdempotent(req.TaskId, req.Payload, int(req.Priority), req.RequiredTag, runAt, req.DependsOn, req.IdempotencyKey)
+
+	var traceParent string
+	if tc, ok := tracing.ExtractGRPC(ctx); ok {
+		traceParent = tc.FormatTraceParent()
+	}
+
+	task, err := s.S.SubmitTaskWithTrace(req.TaskId, req.Payload, int(req.Priority), req.RequiredTag, runAt, req.DependsOn, req.IdempotencyKey, traceParent)
 	if err != nil {
 		if errors.Is(err, ErrDuplicateTask) || errors.Is(err, ErrIdempotencyConflict) {
 			return nil, status.Error(codes.AlreadyExists, err.Error())
