@@ -49,6 +49,7 @@ type LogEntry struct {
 	IdempotencyKey string      `json:"idempotency_key,omitempty"`
 	LogContent     string      `json:"log_content,omitempty"`
 	IsStderr       bool        `json:"is_stderr,omitempty"`
+	TraceParent    string      `json:"traceparent,omitempty"`
 }
 
 // Persister durably stores the Raft state that must survive a restart:
