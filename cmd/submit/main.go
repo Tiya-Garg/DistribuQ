@@ -153,7 +153,20 @@ func main() {
 				log.Printf("purged DLQ task %s via %s: ok=%v", *id, addr, resp.Ok)
 			}
 		} else {
-			resp, sErr := client.SubmitTask(ctx, &pb.SubmitTaskRequest{
+			callCtx := ctx
+			if *traceparentFlag != "" {
+				if tc, err := tracing.ParseTraceParent(*traceparentFlag); err == nil {
+					tracer := tracing.NewTracer("submit-cli")
+					_, span := tracer.Start(ctx, "submit-task", tracing.SpanKindClient)
+					// Override trace ID & span ID with parsed W3C parent
+					spanTrace := span.TraceContext()
+					spanTrace.TraceID = tc.TraceID
+					spanTrace.SpanID = tc.SpanID
+					callCtx = tracing.InjectGRPC(ctx, span)
+					defer span.End()
+				}
+			}
+			resp, sErr := client.SubmitTask(callCtx, &pb.SubmitTaskRequest{
 				TaskId:         *id,
 				Payload:        *payload,
 				Priority:       priority,
