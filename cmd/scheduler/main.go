@@ -216,7 +216,25 @@ func main() {
 		log.Printf("[%s] OTLP distributed tracing exporter configured: %s", *id, *otlpEndpoint)
 	}
 
+	tokenStore := auth.NewTokenStore()
+	if *enableAuth {
+		bootstrapToken := *adminToken
+		if bootstrapToken == "" {
+			var err error
+			bootstrapToken, err = auth.GenerateRawToken("admin")
+			if err != nil {
+				log.Fatalf("failed to generate bootstrap admin token: %v", err)
+			}
+		}
+		_, err := tokenStore.RegisterToken(bootstrapToken, "bootstrap-admin", auth.RoleAdmin, nil, time.Time{})
+		if err != nil {
+			log.Fatalf("failed to register bootstrap admin token: %v", err)
+		}
+		log.Printf("[%s] RBAC auth enabled. Admin token: %s", *id, bootstrapToken)
+	}
+
 	var srvOpts []grpc.ServerOption
+	srvOpts = append(srvOpts, grpc.UnaryInterceptor(auth.UnaryAuthInterceptor(tokenStore, *enableAuth)))
 	if tlsCfg.IsEnabled() {
 		srvOpt, err := tlsCfg.ServerOption()
 		if err != nil {
