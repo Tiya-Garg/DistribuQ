@@ -17,6 +17,7 @@ import (
 	"github.com/Tiya-Garg/DistribuQ/internal/security"
 	pb "github.com/Tiya-Garg/DistribuQ/proto"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 func main() {
@@ -28,6 +29,7 @@ func main() {
 	showWebhooks := flag.Bool("webhooks", false, "display active webhook subscriptions")
 	showTraces := flag.Bool("traces", false, "display recent distributed tracing spans")
 	showCluster := flag.Bool("cluster", false, "display current Raft cluster leader and member peers")
+	tokenFlag := flag.String("token", "", "bearer API token for authentication and RBAC authorization")
 	addPeerID := flag.String("add-peer", "", "peer ID to dynamically add to the cluster")
 	addPeerAddr := flag.String("add-peer-addr", "", "peer address to dynamically add to the cluster")
 	removePeerID := flag.String("remove-peer", "", "peer ID to dynamically remove from the cluster")
@@ -58,6 +60,9 @@ func main() {
 	client := pb.NewSchedulerServiceClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 	defer cancel()
+	if *tokenFlag != "" {
+		ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+*tokenFlag)
+	}
 
 	if *addPeerID != "" {
 		if *addPeerAddr == "" {
