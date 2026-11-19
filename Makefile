@@ -33,6 +33,9 @@ test-webhook:
 test-tracing:
 	go test ./internal/tracing/... -count=1
 
+test-auth:
+	go test ./internal/auth/... ./cmd/submit ./cmd/status -count=1
+
 test-race:
 	go test ./... -race -count=1
 
