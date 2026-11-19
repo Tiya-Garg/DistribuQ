@@ -19,6 +19,7 @@ import (
 	pb "github.com/Tiya-Garg/DistribuQ/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -56,6 +57,7 @@ func main() {
 	cancelFlag := flag.Bool("cancel", false, "cancel/abort a task by ID")
 	replayDLQ := flag.Bool("replay-dlq", false, "replay task from DLQ back into active queue")
 	purgeDLQ := flag.Bool("purge-dlq", false, "purge task from DLQ")
+	tokenFlag := flag.String("token", "", "bearer API token for authentication and RBAC authorization")
 	caCert := flag.String("ca-cert", "", "path to CA root certificate for mTLS")
 	tlsCert := flag.String("tls-cert", "", "path to client TLS certificate for mTLS")
 	tlsKey := flag.String("tls-key", "", "path to client TLS private key for mTLS")
@@ -118,6 +120,9 @@ func main() {
 
 		client := pb.NewSchedulerServiceClient(conn)
 		ctx, cancel := context.WithTimeout(context.Background(), *timeout)
+		if *tokenFlag != "" {
+			ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+*tokenFlag)
+		}
 
 		var callErr error
 		if *showLogs {
