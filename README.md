@@ -31,6 +31,7 @@ A fault-tolerant distributed task scheduler written in Go. Multiple scheduler re
 | `internal/autoscaler` | Dynamic worker autoscaler with queue-depth driven scaling and scale-to-zero |
 | `internal/webhook` | Webhook event notification dispatcher with HMAC-SHA256 signing and backoff retries |
 | `internal/tracing` | W3C distributed tracing context propagation and OTLP span exporter |
+| `internal/auth` | Role-Based Access Control (RBAC), API key management, and gRPC/HTTP auth middleware |
 | `internal/security` | Mutual TLS (mTLS 1.3) certificate loading and transport credentials |
 | `internal/metrics` | Prometheus metrics registry and HTTP export handler (`/metrics`) |
 | `internal/dashboard` | Live cluster dashboard and real-time Server-Sent Events (SSE) monitor |
@@ -233,6 +234,7 @@ DistribuQ features full end-to-end distributed tracing across the scheduling pip
 - [x] Dynamic Worker Autoscaling & Scale-to-Zero (`status -autoscaler`, queue-driven scaling, process provisioner)
 - [x] Webhooks & Event Notification System (`submit -subscribe-webhook`, `status -webhooks`, HMAC signing, Slack payload formatting)
 - [x] Distributed Tracing & OpenTelemetry (`submit -traceparent`, `status -traces`, W3C traceparent context, OTLP exporter)
+- [x] Role-Based Access Control (RBAC) & API Key Tokens (`internal/auth`, `submit -token`, `status -token`, interceptor & middleware)
 - [x] Benchmarking & Performance Harness (`cmd/bench`, microbenchmarks across all core subsystems, CI validation)
 
 ## License
