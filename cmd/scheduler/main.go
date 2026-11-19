@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tiya-Garg/DistribuQ/internal/auth"
 	"github.com/Tiya-Garg/DistribuQ/internal/autoscaler"
 	"github.com/Tiya-Garg/DistribuQ/internal/dashboard"
 	"github.com/Tiya-Garg/DistribuQ/internal/raft"
@@ -44,6 +45,8 @@ func main() {
 	workerBin := flag.String("worker-bin", "./bin/worker", "path to worker executable for autoscaling process provisioner")
 	enableWebhooks := flag.Bool("webhooks", true, "enable webhook notification dispatcher")
 	otlpEndpoint := flag.String("otlp-endpoint", "", "optional OTLP/HTTP collector endpoint to export distributed tracing spans (e.g. http://localhost:4318/v1/traces)")
+	enableAuth := flag.Bool("auth-enabled", false, "enable fine-grained token authentication and RBAC authorization")
+	adminToken := flag.String("admin-token", "", "initial bootstrap admin token for cluster authorization (auto-generated if empty and auth is enabled)")
 	caCert := flag.String("ca-cert", "", "path to CA root certificate for mTLS")
 	tlsCert := flag.String("tls-cert", "", "path to server/client TLS certificate for mTLS")
 	tlsKey := flag.String("tls-key", "", "path to TLS private key for mTLS")
