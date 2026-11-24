@@ -55,6 +55,7 @@ func main() {
 	traceparentFlag := flag.String("traceparent", "", "optional W3C traceparent header to propagate distributed tracing context (e.g. 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01)")
 	showLogs := flag.Bool("logs", false, "fetch and display recorded stdout/stderr execution output for this task ID")
 	cancelFlag := flag.Bool("cancel", false, "cancel/abort a task by ID")
+	pipelineFile := flag.String("pipeline", "", "path to workflow pipeline JSON definition file to submit")
 	replayDLQ := flag.Bool("replay-dlq", false, "replay task from DLQ back into active queue")
 	purgeDLQ := flag.Bool("purge-dlq", false, "purge task from DLQ")
 	tokenFlag := flag.String("token", "", "bearer API token for authentication and RBAC authorization")
@@ -64,8 +65,26 @@ func main() {
 	serverName := flag.String("server-name", "localhost", "expected scheduler TLS server name (SAN) for dial verification")
 	flag.Parse()
 
-	if *id == "" {
-		log.Fatal("submit: -id is required")
+	if *id == "" && *pipelineFile == "" {
+		log.Fatal("submit: -id (or -pipeline) is required")
+	}
+
+	if *pipelineFile != "" {
+		addrs := strings.Split(*addrsFlag, ",")
+		var lastErr error
+		for _, addr := range addrs {
+			addr = strings.TrimSpace(addr)
+			if addr == "" {
+				continue
+			}
+			if err := submitPipelineFile(addr, *pipelineFile, *tokenFlag, *timeout); err == nil {
+				return
+			} else {
+				lastErr = err
+				log.Printf("submitting pipeline to %s failed: %v, trying next", addr, err)
+			}
+		}
+		log.Fatalf("failed to submit pipeline across all schedulers: %v", lastErr)
 	}
 
 	priority := parsePriority(*priorityFlag)
