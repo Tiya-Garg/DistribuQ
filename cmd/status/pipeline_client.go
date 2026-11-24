@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -47,7 +48,7 @@ func queryPipelines(addr, pipelineID, token string, timeout time.Duration) error
 		return fmt.Errorf("query pipelines failed (HTTP %d): %s", resp.StatusCode, string(body))
 	}
 
-	var pretty bytesBuffer
+	var pretty bytes.Buffer
 	if err := json.Indent(&pretty, body, "", "  "); err != nil {
 		fmt.Println(string(body))
 	} else {
@@ -55,12 +56,4 @@ func queryPipelines(addr, pipelineID, token string, timeout time.Duration) error
 	}
 
 	return nil
-}
-
-type bytesBuffer struct {
-	strings.Builder
-}
-
-func (b *bytesBuffer) Write(p []byte) (n int, err error) {
-	return b.WriteString(string(p))
 }
