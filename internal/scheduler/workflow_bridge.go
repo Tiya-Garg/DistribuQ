@@ -48,3 +48,17 @@ func (wb *WorkflowBridge) StartPipeline(ctx context.Context, def *workflow.Pipel
 	}
 	return wb.engine.StartPipeline(ctx, def)
 }
+
+// OnTaskCompleted should be invoked when a scheduler task completes to notify the workflow engine.
+func (wb *WorkflowBridge) OnTaskCompleted(taskID string, output string) {
+	if wb != nil && wb.engine != nil {
+		_ = wb.engine.HandleTaskCompletion(taskID, true, output, "")
+	}
+}
+
+// OnTaskFailed should be invoked when a scheduler task fails to notify the workflow engine.
+func (wb *WorkflowBridge) OnTaskFailed(taskID string, errMsg string) {
+	if wb != nil && wb.engine != nil {
+		_ = wb.engine.HandleTaskCompletion(taskID, false, "", errMsg)
+	}
+}
