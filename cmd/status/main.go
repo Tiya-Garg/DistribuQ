@@ -28,6 +28,8 @@ func main() {
 	showAutoscaler := flag.Bool("autoscaler", false, "display worker autoscaling status and recent scaling decisions")
 	showWebhooks := flag.Bool("webhooks", false, "display active webhook subscriptions")
 	showTraces := flag.Bool("traces", false, "display recent distributed tracing spans")
+	showPipelines := flag.Bool("pipelines", false, "display all active and completed workflow pipelines")
+	pipelineID := flag.String("pipeline", "", "display detailed state and stages for a specific workflow pipeline ID")
 	showCluster := flag.Bool("cluster", false, "display current Raft cluster leader and member peers")
 	tokenFlag := flag.String("token", "", "bearer API token for authentication and RBAC authorization")
 	addPeerID := flag.String("add-peer", "", "peer ID to dynamically add to the cluster")
@@ -97,6 +99,13 @@ func main() {
 		}
 		fmt.Printf("leader: %s\n", cReply.LeaderId)
 		fmt.Printf("peers (%d): %v\n", len(cReply.Peers), cReply.Peers)
+		return
+	}
+
+	if *showPipelines || *pipelineID != "" {
+		if err := queryPipelines(*addr, *pipelineID, *tokenFlag, *timeout); err != nil {
+			log.Fatalf("pipeline query error: %v", err)
+		}
 		return
 	}
 
