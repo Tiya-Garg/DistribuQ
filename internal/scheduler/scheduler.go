@@ -188,6 +188,8 @@ type Scheduler struct {
 	webhookDispatcher *webhook.Dispatcher
 
 	tracer *tracing.Tracer
+
+	workflowBridge *WorkflowBridge
 }
 
 func NewScheduler(dispatchFn func(workerID, addr string, task *Task) error) *Scheduler {

@@ -31,9 +31,18 @@ func (wb *WorkflowBridge) SubmitTask(id, payload string, priority int, tag strin
 	return err
 }
 
-// Engine returns the underlying workflow Engine.
-func (wb *WorkflowBridge) Engine() *workflow.Engine {
-	return wb.engine
+// WorkflowBridge returns the attached WorkflowBridge if configured.
+func (s *Scheduler) WorkflowBridge() *WorkflowBridge {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.workflowBridge
+}
+
+// SetWorkflowBridge attaches a WorkflowBridge to the scheduler.
+func (s *Scheduler) SetWorkflowBridge(wb *WorkflowBridge) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.workflowBridge = wb
 }
 
 // Store returns the underlying workflow PipelineStore.
