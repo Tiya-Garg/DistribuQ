@@ -36,6 +36,9 @@ test-tracing:
 test-auth:
 	go test ./internal/auth/... ./cmd/submit ./cmd/status -count=1
 
+test-workflow:
+	go test ./internal/workflow/... ./internal/scheduler/... -run=Workflow -count=1
+
 test-race:
 	go test ./... -race -count=1
 
